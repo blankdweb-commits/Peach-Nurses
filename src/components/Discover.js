@@ -2,11 +2,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useSwipeable } from 'react-swipeable';
 import { useUser } from '../context/UserContext';
 import AdBanner from './AdBanner';
-import { wingmanService } from '../services/wingmanService';
-import { supabase } from '../services/supabase';
-import { mockBackend } from '../services/mockBackend';
-import { MOCK_USERS, FUN_OPTIONS, MUSIC_MOVIES_OPTIONS, VALUES_OPTIONS, RELATIONSHIP_TYPES } from './mockData';
-import BottomNav from './BottomNav';
 
 const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }) => {
   const { userProfile, incrementAdsSeen, subscription, updateUserProfile } = useUser();
@@ -26,25 +21,146 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
   const cardRef = useRef(null);
 
   // Mock user data for testing
-  const mockCurrentUser = {
-    id: 1,
-    alias: "CurrentUser",
-    level: "Year 2",
-    basics: {
-      fun: ["Eating Boli", "Watching Nollywood", "Swimming"],
-      media: ["Afrobeats", "Davido", "K-Dramas"]
+  const MOCK_USERS = [
+    {
+      id: '1',
+      alias: "Nurse_Peachy99",
+      level: "Year 2",
+      realName: "Nneka Okoro",
+      photoUrl: "https://picsum.photos/400/600?random=1",
+      distance: 1.2,
+      basics: {
+        fun: ["Eating Boli", "Watching Nollywood", "Swimming"],
+        media: ["Afrobeats", "Davido", "K-Dramas"]
+      },
+      life: {
+        based: "Sapele",
+        upbringing: "Strict but loving, raised by grandma."
+      },
+      work: {
+        job: "Student Nurse",
+        reason: "Always wanted to help people heal."
+      },
+      relationships: {
+        values: ["Honesty", "God-fearing", "Family"],
+        lookingFor: "Long-term"
+      },
+      vision: "A simple life with a small clinic of my own someday.",
+      special: "Communication is key to everything."
     },
-    life: {
-      based: "Sapele"
+    {
+      id: '2',
+      alias: "Delta_Doc_Crush",
+      level: "Intern",
+      realName: "Emeka Efe",
+      photoUrl: "https://picsum.photos/400/600?random=2",
+      distance: 15.0,
+      basics: {
+        fun: ["Gym", "Chopping Life", "Reading"],
+        media: ["Burna Boy", "Action Movies", "Afrobeats"]
+      },
+      life: {
+        based: "Warri",
+        upbringing: "Busy city life, big family."
+      },
+      work: {
+        job: "Medical Intern",
+        reason: "Medicine is challenging and rewarding."
+      },
+      relationships: {
+        values: ["Ambition", "Loyalty", "Respect"],
+        lookingFor: "Casual"
+      },
+      vision: "Traveling the world and saving lives.",
+      special: "Never go to bed angry."
     },
-    relationships: {
-      values: ["Honesty", "God-fearing", "Family"],
-      lookingFor: "Long-term"
+    {
+      id: '3',
+      alias: "Asaba_Angel",
+      level: "Year 3",
+      realName: "Chidinma Obi",
+      photoUrl: "https://picsum.photos/400/600?random=3",
+      distance: 45.0,
+      basics: {
+        fun: ["Cooking Egusi", "Church", "Reading"],
+        media: ["Gospel", "RomComs", "K-Dramas"]
+      },
+      life: {
+        based: "Asaba",
+        upbringing: "Quiet, religious home."
+      },
+      work: {
+        job: "Pediatric Nurse",
+        reason: "I love children."
+      },
+      relationships: {
+        values: ["God-fearing", "Family", "Honesty"],
+        lookingFor: "Marriage"
+      },
+      vision: "A happy family and a peaceful home.",
+      special: "Love is patient."
+    },
+    {
+      id: '4',
+      alias: "Ughelli_Medic",
+      level: "Intern",
+      realName: "Tega James",
+      photoUrl: "https://picsum.photos/400/600?random=4",
+      distance: 25.0,
+      basics: {
+        fun: ["Playing Ludo", "Swimming", "Gym"],
+        media: ["Wizkid", "Action Movies", "Afrobeats"]
+      },
+      life: {
+        based: "Ughelli",
+        upbringing: "Adventurous, lots of outdoor play."
+      },
+      work: {
+        job: "Emergency Room Nurse",
+        reason: "The adrenaline and saving lives."
+      },
+      relationships: {
+        values: ["Humor", "Loyalty", "Ambition"],
+        lookingFor: "Long-term"
+      },
+      vision: "Building a hospital in my hometown.",
+      special: "Respect is earned, not given."
+    },
+    {
+      id: '5',
+      alias: "Sapele_Siren",
+      level: "Year 1",
+      realName: "Blessing Keyamo",
+      photoUrl: "https://picsum.photos/400/600?random=5",
+      distance: 2.5,
+      basics: {
+        fun: ["Sleeping", "Watching Nollywood", "Eating Boli"],
+        media: ["Davido", "RomComs", "Afrobeats"]
+      },
+      life: {
+        based: "Sapele",
+        upbringing: "Fun, chaotic, full of love."
+      },
+      work: {
+        job: "Student",
+        reason: "Stable career path."
+      },
+      relationships: {
+        values: ["Family", "Respect", "Honesty"],
+        lookingFor: "Study Buddy"
+      },
+      vision: "Passing exams and getting a good job.",
+      special: "Forgiveness heals the soul."
     }
-  };
+  ];
 
-  // Use actual userProfile or fallback to mock data
-  const currentUser = userProfile || mockCurrentUser;
+  // Use actual userProfile from context
+  const currentUser = userProfile;
+
+  // Debug: Log current user profile
+  useEffect(() => {
+    console.log('Current User Profile:', currentUser);
+  }, [currentUser]);
 
   // Fetch user's current location
   useEffect(() => {
@@ -58,7 +174,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
             });
           },
           () => {
-            // Fallback to default location
+            // Fallback to default location (Delta State)
             setUserLocation({ latitude: 5.5380, longitude: 5.7600 });
           }
         );
@@ -70,96 +186,8 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     fetchLocation();
   }, []);
 
-  // Calculate distance between two coordinates
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return Math.round(R * c * 10) / 10;
-  };
-
-  // Fetch potential matches - using mock data
-  const fetchPotentialMatches = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Filter out current user if they exist in mock data
-      const filteredMatches = MOCK_USERS.filter(user => 
-        user.id !== currentUser.id
-      );
-      
-      // Calculate distances if we have user location
-      const enrichedMatches = filteredMatches.map(match => {
-        let distance = null;
-        
-        // Generate random distances for mock data
-        if (userLocation) {
-          // Add some randomness to distances for variety
-          const baseDistance = Math.random() * 50 + 1; // 1-51 km
-          distance = Math.round(baseDistance * 10) / 10;
-        }
-        
-        return {
-          ...match,
-          id: match.id.toString(), // Ensure ID is string for consistency
-          distance,
-          basics: match.basics || { fun: [], media: [] },
-          relationships: match.relationships || { values: [], lookingFor: '' },
-          life: match.life || { based: 'Delta' }
-        };
-      });
-
-      // Sort by distance (closest first)
-      const sortedMatches = enrichedMatches.sort((a, b) => {
-        if (a.distance && b.distance) {
-          return a.distance - b.distance;
-        }
-        const scoreA = calculateCompatibility(currentUser, a);
-        const scoreB = calculateCompatibility(currentUser, b);
-        return scoreB - scoreA;
-      });
-
-      setPotentialMatches(sortedMatches);
-    } catch (err) {
-      console.error('Error fetching matches:', err);
-      setError('Failed to load potential matches');
-      // Fallback to mock data even on error
-      setPotentialMatches(MOCK_USERS.filter(user => user.id !== currentUser.id));
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUser.id, userLocation]); // Fixed dependency
-
-  useEffect(() => {
-    fetchPotentialMatches();
-  }, [fetchPotentialMatches]);
-
-  useEffect(() => {
-    const hasSeenInstructions = localStorage.getItem('hasSeenDiscoverInstructions');
-    if (!hasSeenInstructions && !loading && potentialMatches.length > 0) {
-      setTimeout(() => {
-        setShowInstructions(true);
-        localStorage.setItem('hasSeenDiscoverInstructions', 'true');
-      }, 1000);
-    }
-  }, [loading, potentialMatches.length]);
-
-  const deck = useMemo(() => {
-    return potentialMatches.filter(u => !u.banned);
-  }, [potentialMatches]);
-
-  const currentMatch = deck[currentIndex];
-
-  const calculateCompatibility = (user, match) => {
+  // Calculate compatibility score
+  const calculateCompatibility = useCallback((user, match) => {
     if (!user?.basics || !match?.basics || !match?.relationships || !match?.life) return 0;
     
     const userFun = user.basics?.fun || [];
@@ -183,10 +211,85 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     if (user.relationships?.lookingFor === match.relationships?.lookingFor) score += 10;
 
     return Math.min(Math.round(score), 100);
-  };
+  }, []);
 
-  const matchScore = currentMatch ? calculateCompatibility(currentUser, currentMatch) : 0;
+  // Fetch potential matches
+  const fetchPotentialMatches = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Filter out current user
+      const filteredMatches = MOCK_USERS.filter(user => 
+        currentUser && user.id !== currentUser.id
+      );
+      
+      // Calculate distances and enrich matches
+      const enrichedMatches = filteredMatches.map(match => {
+        let distance = null;
+        
+        if (userLocation) {
+          // Generate random distances for mock data
+          const baseDistance = Math.random() * 50 + 1; // 1-51 km
+          distance = Math.round(baseDistance * 10) / 10;
+        }
+        
+        return {
+          ...match,
+          distance,
+          basics: match.basics || { fun: [], media: [] },
+          relationships: match.relationships || { values: [], lookingFor: '' },
+          life: match.life || { based: 'Delta' }
+        };
+      });
 
+      // Sort by compatibility score
+      const sortedMatches = enrichedMatches.sort((a, b) => {
+        const scoreA = calculateCompatibility(currentUser, a);
+        const scoreB = calculateCompatibility(currentUser, b);
+        return scoreB - scoreA;
+      });
+
+      console.log('Loaded matches:', sortedMatches.length);
+      setPotentialMatches(sortedMatches);
+    } catch (err) {
+      console.error('Error fetching matches:', err);
+      setError('Failed to load potential matches');
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser, userLocation, calculateCompatibility]);
+
+  // Load matches when component mounts and user profile is available
+  useEffect(() => {
+    if (currentUser) {
+      fetchPotentialMatches();
+    }
+  }, [currentUser, fetchPotentialMatches]);
+
+  // Show instructions after loading
+  useEffect(() => {
+    const hasSeenInstructions = localStorage.getItem('hasSeenDiscoverInstructions');
+    if (!hasSeenInstructions && !loading && potentialMatches.length > 0 && currentUser) {
+      setTimeout(() => {
+        setShowInstructions(true);
+        localStorage.setItem('hasSeenDiscoverInstructions', 'true');
+      }, 1000);
+    }
+  }, [loading, potentialMatches.length, currentUser]);
+
+  // Filter deck
+  const deck = useMemo(() => {
+    return potentialMatches.filter(u => !u.banned);
+  }, [potentialMatches]);
+
+  const currentMatch = deck[currentIndex];
+  const matchScore = currentMatch && currentUser ? calculateCompatibility(currentUser, currentMatch) : 0;
+
+  // Swipe handlers
   const handlers = useSwipeable({
     onSwiping: (eventData) => {
       setIsDragging(true);
@@ -209,17 +312,13 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
 
   const handleRipenMatch = async (targetUserId) => {
     try {
-      // Mock implementation - simulate API call
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Check if already ripened
       const ripenedUsers = JSON.parse(localStorage.getItem('ripenedUsers') || '[]');
       if (ripenedUsers.includes(targetUserId)) {
-        console.log('Already ripened this user');
         return false;
       }
 
-      // Check daily limit
       const today = new Date().toISOString().split('T')[0];
       const dailyRipens = JSON.parse(localStorage.getItem('dailyRipens') || '[]');
       const todayRipens = dailyRipens.filter(date => date === today);
@@ -229,19 +328,17 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
         return false;
       }
 
-      // Save ripened user
       ripenedUsers.push(targetUserId);
       localStorage.setItem('ripenedUsers', JSON.stringify(ripenedUsers));
       
-      // Save daily count
       dailyRipens.push(today);
       localStorage.setItem('dailyRipens', JSON.stringify(dailyRipens));
 
-      // Check for mutual match (simulated)
-      const mutualMatch = Math.random() > 0.7; // 30% chance of match
+      setRipenCount(prev => prev + 1);
+      
+      const mutualMatch = Math.random() > 0.7;
       
       if (mutualMatch && currentMatch) {
-        // Save match to localStorage
         const matches = JSON.parse(localStorage.getItem('matches') || '[]');
         matches.push({
           userId: targetUserId,
@@ -252,20 +349,6 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
         
         setNotification(`🎉 It's a match with ${currentMatch.alias}!`);
         setTimeout(() => setNotification(null), 3000);
-      }
-
-      setRipenCount(prev => prev + 1);
-      
-      if (!subscription?.isPremium) {
-        const remaining = dailyLimit - todayRipens.length - 1;
-        if (updateUserProfile) {
-          updateUserProfile({ 
-            subscription: { 
-              ...subscription, 
-              dailyUnripes: Math.max(0, remaining) 
-            } 
-          });
-        }
       }
 
       return true;
@@ -279,6 +362,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     const newCount = actionsSinceAd + 1;
     setActionsSinceAd(newCount);
     const shouldShowAds = !subscription?.isPremium || (subscription?.isPremium && currentUser?.preferences?.allowAds);
+    
     if (shouldShowAds && newCount >= 5) {
       setTimeout(() => setShowAd(true), 500);
       setActionsSinceAd(0);
@@ -325,15 +409,10 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     if (match?.photoUrl) {
       return match.photoUrl;
     }
-    // Generate consistent random image based on user ID
-    const randomSeed = match?.id || Math.random();
-    return `https://picsum.photos/400/600?random=${randomSeed}&grayscale`;
+    return `https://picsum.photos/400/600?random=${match?.id || Math.random()}`;
   };
 
-  if (showAd) {
-    return <AdBanner onAdComplete={handleAdComplete} />;
-  }
-
+  // Show loading state
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
@@ -344,6 +423,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     );
   }
 
+  // Show error state
   if (error) {
     return (
       <div style={styles.errorContainer}>
@@ -360,6 +440,12 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     );
   }
 
+  // Show ad if needed
+  if (showAd) {
+    return <AdBanner onAdComplete={handleAdComplete} />;
+  }
+
+  // Show empty state if no matches
   if (deck.length === 0 || !currentMatch) {
     return (
       <div style={styles.emptyContainer}>
@@ -382,10 +468,31 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
             Adjust Settings
           </button>
         </div>
+        
+        {/* Bottom Navigation */}
+        <div style={styles.bottomNav}>
+          <div style={{...styles.navItem, ...styles.navItemActive}}>
+            <div style={styles.navIcon}>🍑</div>
+            <div style={styles.navLabel}>Discover</div>
+          </div>
+          <div style={styles.navItem} onClick={onNavigateToChats}>
+            <div style={styles.navIcon}>💬</div>
+            <div style={styles.navLabel}>Chats</div>
+          </div>
+          <div style={styles.navItem} onClick={onNavigateToStore}>
+            <div style={styles.navIcon}>🛒</div>
+            <div style={styles.navLabel}>Store</div>
+          </div>
+          <div style={styles.navItem} onClick={onNavigateToSettings}>
+            <div style={styles.navIcon}>⚙️</div>
+            <div style={styles.navLabel}>Settings</div>
+          </div>
+        </div>
       </div>
     );
   }
 
+  // Main Discover view
   return (
     <div style={styles.container}>
       {notification && (
@@ -414,20 +521,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
         </div>
       )}
 
-      <div style={styles.header}>
-        <div style={styles.logo}>🍑</div>
-        <div 
-          onClick={onNavigateToStore}
-          style={{
-            ...styles.ripenCounter,
-            backgroundColor: subscription?.isPremium ? 'rgba(255, 215, 0, 0.1)' : 'rgba(255, 99, 71, 0.1)',
-            color: subscription?.isPremium ? '#FFD700' : '#FF6347'
-          }}
-        >
-          {subscription?.isPremium ? "👑" : `${ripenCount}/25`}
-        </div>
-      </div>
-
+      {/* Swipe Area */}
       <div 
         {...handlers}
         style={styles.swipeArea}
@@ -486,8 +580,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
                   📍 {currentMatch.life.based} • {currentMatch.relationships.lookingFor || 'Looking to connect'}
                 </div>
                 <div style={styles.additionalInfo}>
-                  <p style={styles.vision}>{currentMatch.vision}</p>
-                  <p style={styles.special}>✨ {currentMatch.special}</p>
+                  <p style={styles.vision}>✨ {currentMatch.special}</p>
                 </div>
               </div>
             </div>
@@ -495,19 +588,46 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
         </div>
       </div>
 
+      {/* Action Buttons */}
       <div style={styles.actions}>
         <button 
           onClick={() => handleManualSwipe('left')}
           style={styles.nopeButton}
+          onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
+          onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
         >
           ✖
         </button>
         <button 
           onClick={() => handleManualSwipe('right')}
           style={styles.ripenButton}
+          onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
+          onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
         >
           🍑
         </button>
+      </div>
+
+      {/* Bottom Navigation */}
+      <div style={styles.bottomNav}>
+        <div style={{...styles.navItem, ...styles.navItemActive}}>
+          <div style={styles.navIcon}>🍑</div>
+          <div style={styles.navLabel}>Discover</div>
+        </div>
+        <div style={styles.navItem} onClick={onNavigateToChats}>
+          <div style={styles.navIcon}>💬</div>
+          <div style={styles.navLabel}>Chats</div>
+        </div>
+        <div style={styles.navItem} onClick={onNavigateToStore}>
+          <div style={styles.navIcon}>🛒</div>
+          <div style={styles.navLabel}>Store</div>
+        </div>
+        <div style={styles.navItem} onClick={onNavigateToSettings}>
+          <div style={styles.navIcon}>⚙️</div>
+          <div style={styles.navLabel}>Settings</div>
+        </div>
       </div>
     </div>
   );
@@ -519,28 +639,8 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     backgroundColor: '#f8f9fa',
-    position: 'relative'
-  },
-  header: {
-    padding: '15px 20px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-    zIndex: 100
-  },
-  logo: {
-    fontSize: '1.5rem',
-    fontWeight: 'bold',
-    color: '#FF6347'
-  },
-  ripenCounter: {
-    fontSize: '0.9rem',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    padding: '8px 12px',
-    borderRadius: '15px'
+    position: 'relative',
+    paddingBottom: '80px' // Space for bottom nav
   },
   swipeArea: {
     flex: 1,
@@ -614,9 +714,7 @@ const styles = {
     right: 0,
     background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
     padding: '25px',
-    color: 'white',
-    maxHeight: '70%',
-    overflowY: 'auto'
+    color: 'white'
   },
   cardHeader: {
     display: 'flex',
@@ -672,17 +770,15 @@ const styles = {
     margin: '5px 0',
     fontStyle: 'italic'
   },
-  special: {
-    margin: '5px 0'
-  },
   actions: {
     padding: '20px',
-    paddingBottom: '30px',
     display: 'flex',
     justifyContent: 'center',
     gap: '40px',
-    backgroundColor: 'white',
-    boxShadow: '0 -2px 10px rgba(0,0,0,0.05)'
+    backgroundColor: 'transparent',
+    position: 'relative',
+    zIndex: 100,
+    marginBottom: '20px'
   },
   nopeButton: {
     width: '70px',
@@ -713,6 +809,43 @@ const styles = {
     justifyContent: 'center',
     boxShadow: '0 5px 15px rgba(76, 175, 80, 0.2)',
     transition: 'all 0.2s'
+  },
+  bottomNav: {
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '70px',
+    backgroundColor: 'white',
+    display: 'flex',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
+    zIndex: 1000,
+    padding: '0 10px'
+  },
+  navItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    height: '100%',
+    cursor: 'pointer',
+    color: '#666',
+    transition: 'all 0.2s',
+    padding: '8px 0'
+  },
+  navItemActive: {
+    color: '#FF6347'
+  },
+  navIcon: {
+    fontSize: '1.5rem',
+    marginBottom: '4px'
+  },
+  navLabel: {
+    fontSize: '0.7rem',
+    fontWeight: '500'
   },
   loadingContainer: {
     height: '100vh',
@@ -800,7 +933,8 @@ const styles = {
     display: 'flex',
     gap: '15px',
     flexWrap: 'wrap',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    marginBottom: '100px'
   },
   refreshButton: {
     padding: '15px 30px',

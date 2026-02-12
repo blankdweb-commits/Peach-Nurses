@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
-// Remove CSS import since file doesn't exist
-// import './Onboarding.css';
 
 const Onboarding = () => {
   const { updateUserProfile, setOnboardingComplete } = useUser();
@@ -25,19 +23,8 @@ const Onboarding = () => {
   const [checkingUsername, setCheckingUsername] = useState(false);
   const [usernameMessage, setUsernameMessage] = useState('');
 
-  // Constants moved inside component
   const LOCATIONS = ['Asaba', 'Warri', 'Ughelli', 'Sapele', 'Agbor', 'Okpanam', 'Abraka', 'Patani'];
   const LEVELS = ['100L', '200L', '300L', '400L', '500L', 'Intern', 'Staff Nurse', 'Senior Nurse'];
-  const SWEET_PEACHES = ['Trustworthy', 'Good listener', 'Kind', 'Supportive', 'Funny', 'Ambitious'];
-  const BRUISED_PEACHES = ['Dishonest', 'Selfish', 'Controlling', 'Judgmental', 'Unambitious'];
-
-  const fetchUserProfile = async () => {
-    // Fetch logic here
-  };
-
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
 
   // Function to check username availability (simulated API call)
   const checkUsernameAvailability = async (username) => {
@@ -53,7 +40,6 @@ const Onboarding = () => {
     await new Promise(resolve => setTimeout(resolve, 500));
     
     // In a real app, this would be an API call to your backend
-    // For now, we'll simulate some taken usernames
     const takenUsernames = ['peachlover', 'deltaqueen', 'goldennurse', 'nursejohn', 'medstudent'];
     
     if (takenUsernames.includes(username.toLowerCase())) {
@@ -90,7 +76,6 @@ const Onboarding = () => {
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // Reset username availability when username changes
     if (field === 'username') {
       setUsernameAvailable(null);
       setUsernameMessage('');
@@ -112,8 +97,20 @@ const Onboarding = () => {
     if (currentStep < 4) {
       setCurrentStep(prev => prev + 1);
     } else {
-      updateUserProfile(formData);
-      setOnboardingComplete(true);
+      // FIXED: Save all profile data and complete onboarding
+      const completeProfile = {
+        ...formData,
+        id: `user_${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        photoUrl: `https://picsum.photos/400/600?random=${Math.random()}`,
+        distance: 0
+      };
+      
+      // Save to context
+      updateUserProfile(completeProfile);
+      
+      // Mark onboarding as complete - this will trigger navigation to Discover
+      setOnboardingComplete();
     }
   };
 
@@ -366,7 +363,6 @@ const Onboarding = () => {
 
   const progressPercentage = ((currentStep - 1) / 3) * 100;
 
-  // Validation for step 1
   const isStep1Valid = () => {
     return formData.username && 
            formData.username.length >= 3 && 
@@ -433,7 +429,8 @@ const styles = {
     maxWidth: '600px',
     margin: '0 auto',
     fontFamily: 'system-ui, -apple-system, sans-serif',
-    minHeight: '100vh'
+    minHeight: '100vh',
+    backgroundColor: 'white'
   },
   header: {
     marginBottom: '30px'
@@ -456,7 +453,7 @@ const styles = {
     fontSize: '0.9rem'
   },
   content: {
-    marginBottom: '40px'
+    marginBottom: '100px'
   },
   stepContainer: {
     padding: '20px 0'
