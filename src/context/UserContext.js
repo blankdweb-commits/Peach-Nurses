@@ -1,219 +1,247 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { MOCK_USERS } from '../data/mockData';
-import { mockBackend } from '../services/mockBackend';
+// src/context/UserContext.js
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export const UserContext = createContext();
+const UserContext = createContext();
 
-export const useUser = () => useContext(UserContext);
+export const useUser = () => {
+  const context = useContext(UserContext);
+  if (!context) {
+    throw new Error('useUser must be used within a UserProvider');
+  }
+  return context;
+};
 
 export const UserProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null); // null = not logged in
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
   const [subscription, setSubscription] = useState({
     isPremium: false,
-    dailyUnripes: 0,
-    lastReset: new Date().toISOString().split('T')[0] // YYYY-MM-DD
+    dailyUnripes: 25,
+    dailyLimit: 25,
+    plan: 'free',
+    expiresAt: null,
+    paymentHistory: []
   });
-  const [rippedMatches, setRippedMatches] = useState([]);
-  const [potentialMatches, setPotentialMatches] = useState(MOCK_USERS);
   const [adsSeen, setAdsSeen] = useState(0);
-  const [business, setBusiness] = useState({ isBusiness: false, ads: [] });
-  const [onboardingComplete, setOnboardingComplete] = useState(false);
-  const [kycStatus, setKycStatus] = useState('pending'); // pending, verified, rejected
+  const [ripenedUsers, setRipenedUsers] = useState([]);
+  const [matches, setMatches] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Chat State
-  const [chats, setChats] = useState({});
-  const [feedback, setFeedback] = useState([]);
-
-  // User Profile State
-  const [userProfile, setUserProfile] = useState({
-    name: "My Name",
-    email: "myemail@peach.com",
-    photoUrl: null,
-    preferences: { allowAds: false },
-    alias: "My_Alias",
-    level: "Year 2",
-    basics: { fun: [], media: [] },
-    life: { based: "Sapele", upbringing: "" },
-    work: { job: "Student Nurse", reason: "" },
-    relationships: { values: [], lookingFor: "Long-term" },
-    vision: "",
-    special: ""
-  });
-
-  // Auth Functions
-  const loginUser = (email, password) => {
-    // Mock Logic
-    if (email.includes('@') && password.length > 3) {
-        setCurrentUser({ email, id: 'current_user' });
-        // Restore profile if saved in mock backend?
-        // For now, reset onboarding if new user simulation
-        if (email === 'test@peach.com') {
-            setOnboardingComplete(true);
-            setSubscription(prev => ({ ...prev, isPremium: false }));
-        }
-        return true;
-    }
-    return false;
-  };
-
-  const signupUser = (email, password) => {
-      // Mock Logic
-      if (email.includes('@')) {
-          setCurrentUser({ email, id: 'current_user' });
-          setOnboardingComplete(false); // New user needs onboarding
-          setSubscription(prev => ({ ...prev, isPremium: false }));
-          // Reset Profile
-          setUserProfile(prev => ({ ...prev, email }));
-          return true;
-      }
-      return false;
-  };
-
-  const logoutUser = () => {
-      setCurrentUser(null);
-      setOnboardingComplete(false);
-  };
-
-  // Daily Reset Logic
+  // Load user data from localStorage
   useEffect(() => {
-    const today = new Date().toISOString().split('T')[0];
-    if (subscription.lastReset !== today) {
+    const loadUserData = () => {
+      try {
+        const savedUser = localStorage.getItem('currentUser');
+        const savedProfile = localStorage.getItem('userProfile');
+        const savedOnboarding = localStorage.getItem('onboardingComplete');
+        const savedSubscription = localStorage.getItem('subscription');
+        const savedRipenedUsers = localStorage.getItem('ripenedUsers');
+        const savedMatches = localStorage.getItem('matches');
+
+        if (savedUser) setCurrentUser(JSON.parse(savedUser));
+        if (savedProfile) setUserProfile(JSON.parse(savedProfile));
+        if (savedOnboarding) setOnboardingComplete(JSON.parse(savedOnboarding));
+        if (savedSubscription) setSubscription(JSON.parse(savedSubscription));
+        if (savedRipenedUsers) setRipenedUsers(JSON.parse(savedRipenedUsers));
+        if (savedMatches) setMatches(JSON.parse(savedMatches));
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, []);
+
+  // Check subscription expiry
+  useEffect(() => {
+    if (subscription.expiresAt && new Date(subscription.expiresAt) < new Date()) {
+      // Subscription expired
       setSubscription(prev => ({
         ...prev,
-        dailyUnripes: 0,
-        lastReset: today
+        isPremium: false,
+        plan: 'free',
+        dailyLimit: 25,
+        dailyUnripes: 25
       }));
     }
-  }, [subscription.lastReset]);
+  }, [subscription.expiresAt]);
 
-  const canRipen = () => {
-    if (subscription.isPremium) return true;
-    return subscription.dailyUnripes < 25;
+  const login = (userData) => {
+    setCurrentUser(userData);
+    localStorage.setItem('currentUser', JSON.stringify(userData));
   };
 
-  const ripenMatch = async (matchId) => {
-    if (rippedMatches.includes(matchId)) return true;
-
-    if (canRipen()) {
-      if (!subscription.isPremium) {
-         setSubscription(prev => ({
-           ...prev,
-           dailyUnripes: prev.dailyUnripes + 1
-         }));
-      }
-      setRippedMatches(prev => [...prev, matchId]);
-      setChats(prev => ({ ...prev, [matchId]: [] }));
-      return true;
-    }
-    return false;
-  };
-
-  const isRipped = (matchId) => rippedMatches.includes(matchId);
-
-  // Chat Actions
-  const sendMessage = (matchId, text) => {
-    const newMessage = { id: Date.now(), text, sender: 'me', timestamp: new Date().toISOString() };
-    setChats(prev => ({
-      ...prev,
-      [matchId]: [...(prev[matchId] || []), newMessage]
-    }));
-    setTimeout(() => {
-        const reply = { id: Date.now() + 1, text: "That's interesting! Tell me more.", sender: 'them', timestamp: new Date().toISOString() };
-        setChats(prev => ({ ...prev, [matchId]: [...(prev[matchId] || []), reply] }));
-    }, 2000);
-  };
-
-  // Admin Actions
-  const deleteUser = (userId) => {
-    setPotentialMatches(prev => prev.filter(user => user.id !== userId));
-  };
-
-  const banUser = (userId) => {
-    setPotentialMatches(prev => prev.map(user =>
-      user.id === userId ? { ...user, banned: true } : user
-    ));
-  };
-
-  const grantPremium = (userId) => {
-      // In a real app, we'd update the specific user in DB.
-      // Here, if userId is 'current_user' (us), update subscription.
-      // If it's a match, we just update their mock object (maybe to show badge).
-      if (userId === 'current_user' || !userId) {
-          setSubscription(prev => ({ ...prev, isPremium: true }));
-      } else {
-          // Update mock user list to reflect status if we track it there
-          setPotentialMatches(prev => prev.map(user =>
-            user.id === userId ? { ...user, isPremium: true } : user
-          ));
-      }
-  };
-
-  const revokePremium = (userId) => {
-      if (userId === 'current_user' || !userId) {
-          setSubscription(prev => ({ ...prev, isPremium: false }));
-      } else {
-          setPotentialMatches(prev => prev.map(user =>
-            user.id === userId ? { ...user, isPremium: false } : user
-          ));
-      }
-  };
-
-  const processUpgrade = async (paymentReference) => {
-    const result = await mockBackend.verifyPayment(paymentReference);
-    if (result.status) {
-      setSubscription(prev => ({ ...prev, isPremium: true }));
-      return true;
-    }
-    return false;
-  };
-
-  const incrementAdsSeen = () => setAdsSeen(prev => prev + 1);
-
-  const updateUserProfile = (updates) => {
-    setUserProfile(prev => {
-      if (updates.preferences) {
-        return { ...prev, ...updates, preferences: { ...prev.preferences, ...updates.preferences } };
-      }
-      return { ...prev, ...updates };
+  const logout = () => {
+    setCurrentUser(null);
+    setUserProfile(null);
+    setOnboardingComplete(false);
+    setSubscription({
+      isPremium: false,
+      dailyUnripes: 25,
+      dailyLimit: 25,
+      plan: 'free',
+      expiresAt: null,
+      paymentHistory: []
     });
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('userProfile');
+    localStorage.removeItem('onboardingComplete');
+    localStorage.removeItem('subscription');
   };
 
-  const createBusinessAccount = () => {
-    if (subscription.isPremium && kycStatus === 'verified') {
-      setBusiness(prev => ({ ...prev, isBusiness: true }));
+  const updateUserProfile = (profileData) => {
+    const updatedProfile = { ...userProfile, ...profileData };
+    setUserProfile(updatedProfile);
+    localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
+    return updatedProfile;
+  };
+
+  const completeOnboarding = () => {
+    setOnboardingComplete(true);
+    localStorage.setItem('onboardingComplete', JSON.stringify(true));
+  };
+
+  // Upgrade to premium
+  const upgradeToPremium = async (paymentDetails) => {
+    try {
+      const newSubscription = {
+        isPremium: true,
+        dailyUnripes: 999,
+        dailyLimit: 999,
+        plan: 'premium',
+        paymentMethod: paymentDetails.paymentMethod,
+        reference: paymentDetails.reference,
+        amount: paymentDetails.amount,
+        upgradedAt: new Date().toISOString(),
+        expiresAt: paymentDetails.expiresAt,
+        paymentHistory: [
+          ...subscription.paymentHistory,
+          {
+            ...paymentDetails,
+            date: new Date().toISOString()
+          }
+        ]
+      };
+
+      setSubscription(newSubscription);
+      localStorage.setItem('subscription', JSON.stringify(newSubscription));
+      
       return true;
+    } catch (error) {
+      console.error('Error upgrading to premium:', error);
+      return false;
     }
-    return false;
   };
 
-  const postAd = async (adData, paymentRef) => {
-    const result = await mockBackend.verifyPayment(paymentRef);
-    if (result.status) {
-        setBusiness(prev => ({ ...prev, ads: [...prev.ads, { id: Date.now(), ...adData }] }));
-        return true;
+  // Cancel premium subscription
+  const cancelPremium = () => {
+    const updatedSubscription = {
+      ...subscription,
+      isPremium: false,
+      plan: 'free',
+      dailyLimit: 25,
+      dailyUnripes: 25
+    };
+    
+    setSubscription(updatedSubscription);
+    localStorage.setItem('subscription', JSON.stringify(updatedSubscription));
+  };
+
+  const ripenMatch = async (targetUserId) => {
+    // Check daily limit
+    const today = new Date().toISOString().split('T')[0];
+    const dailyRipens = JSON.parse(localStorage.getItem('dailyRipens') || '[]');
+    const todayRipens = dailyRipens.filter(date => date === today);
+    
+    const dailyLimit = subscription.isPremium ? 999 : 25;
+    if (todayRipens.length >= dailyLimit) {
+      return false;
     }
-    return false;
+
+    if (ripenedUsers.includes(targetUserId)) {
+      return false;
+    }
+
+    // Save ripened user
+    const newRipenedUsers = [...ripenedUsers, targetUserId];
+    setRipenedUsers(newRipenedUsers);
+    localStorage.setItem('ripenedUsers', JSON.stringify(newRipenedUsers));
+    
+    // Save daily count
+    dailyRipens.push(today);
+    localStorage.setItem('dailyRipens', JSON.stringify(dailyRipens));
+
+    // Update daily unripes counter
+    if (!subscription.isPremium) {
+      const remaining = Math.max(0, dailyLimit - (todayRipens.length + 1));
+      setSubscription(prev => ({ 
+        ...prev, 
+        dailyUnripes: remaining 
+      }));
+    }
+
+    // Check for mutual match (30% chance)
+    const mutualMatch = Math.random() > 0.7;
+    
+    if (mutualMatch) {
+      // Get match details from potential matches (you'll need to pass this)
+      const matchUser = JSON.parse(localStorage.getItem('potentialMatches') || '[]')
+        .find(u => u.id === targetUserId);
+      
+      if (matchUser) {
+        const newMatch = {
+          id: targetUserId,
+          userId: targetUserId,
+          alias: matchUser.alias,
+          photoUrl: matchUser.photoUrl,
+          matchedAt: new Date().toISOString(),
+          lastMessage: null,
+          lastMessageTime: null
+        };
+        const updatedMatches = [...matches, newMatch];
+        setMatches(updatedMatches);
+        localStorage.setItem('matches', JSON.stringify(updatedMatches));
+      }
+    }
+
+    return true;
   };
 
-  const submitFeedback = (data) => {
-    setFeedback(prev => [...prev, data]);
-    console.log("Feedback received:", data);
+  const isRipped = (userId) => {
+    return ripenedUsers.includes(userId);
   };
 
-  const updateKYC = (status) => {
-      setKycStatus(status);
+  const incrementAdsSeen = () => {
+    setAdsSeen(prev => prev + 1);
+    localStorage.setItem('adsSeen', JSON.stringify(adsSeen + 1));
+  };
+
+  const value = {
+    currentUser,
+    userProfile,
+    onboardingComplete,
+    subscription,
+    adsSeen,
+    ripenedUsers,
+    matches,
+    loading,
+    login,
+    logout,
+    updateUserProfile,
+    setOnboardingComplete: completeOnboarding,
+    upgradeToPremium,
+    cancelPremium,
+    ripenMatch,
+    isRipped,
+    incrementAdsSeen,
+    potentialMatches: []
   };
 
   return (
-    <UserContext.Provider value={{
-      currentUser, loginUser, signupUser, logoutUser,
-      subscription, ripenMatch, isRipped, rippedMatches, userProfile, potentialMatches,
-      deleteUser, banUser, grantPremium, revokePremium,
-      adsSeen, incrementAdsSeen, processUpgrade, canRipen, updateUserProfile,
-      business, createBusinessAccount, postAd, chats, sendMessage,
-      onboardingComplete, setOnboardingComplete, submitFeedback, feedback,
-      kycStatus, updateKYC
-    }}>
+    <UserContext.Provider value={value}>
       {children}
     </UserContext.Provider>
   );
