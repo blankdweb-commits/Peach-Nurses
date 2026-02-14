@@ -1,3 +1,4 @@
+// components/BottomNav.js
 import React from 'react';
 import './Navigation.css';
 
@@ -9,16 +10,27 @@ const BottomNav = ({ currentView, onChangeView }) => {
     { id: 'settings', icon: '⚙️', label: 'Settings' }
   ];
 
+  const handleNavigation = (itemId) => {
+    // Special handling for membership/premium
+    if (itemId === 'membership') {
+      // You might want to navigate to membership page instead of directly to Paystack
+      onChangeView('membership');
+    } else {
+      onChangeView(itemId);
+    }
+  };
+
   return (
     <div className="bottom-nav">
       {navItems.map(item => (
         <button
           key={item.id}
           className={`nav-item ${currentView === item.id || (item.id === 'chatList' && currentView === 'chatConversation') ? 'active' : ''}`}
-          onClick={() => onChangeView(item.id)}
+          onClick={() => handleNavigation(item.id)}
+          aria-label={item.label}
         >
           <span className="nav-icon">{item.icon}</span>
-          <span>{item.label}</span>
+          <span className="nav-label">{item.label}</span>
         </button>
       ))}
     </div>
