@@ -1,8 +1,9 @@
+// components/Onboarding.js
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
 
 const Onboarding = () => {
-  const { updateUserProfile, setOnboardingComplete } = useUser();
+  const { currentUser, updateUserProfile, setOnboardingComplete } = useUser();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     username: '',
@@ -25,6 +26,13 @@ const Onboarding = () => {
 
   const LOCATIONS = ['Asaba', 'Warri', 'Ughelli', 'Sapele', 'Agbor', 'Okpanam', 'Abraka', 'Patani'];
   const LEVELS = ['100L', '200L', '300L', '400L', '500L', 'Intern', 'Staff Nurse', 'Senior Nurse'];
+
+  // Pre-fill username from signup if available
+  useEffect(() => {
+    if (currentUser?.username && !formData.username) {
+      setFormData(prev => ({ ...prev, username: currentUser.username }));
+    }
+  }, [currentUser, formData.username]);
 
   // Function to check username availability (simulated API call)
   const checkUsernameAvailability = async (username) => {
@@ -97,10 +105,12 @@ const Onboarding = () => {
     if (currentStep < 4) {
       setCurrentStep(prev => prev + 1);
     } else {
-      // FIXED: Save all profile data and complete onboarding
+      // Create complete profile linked to currentUser
       const completeProfile = {
         ...formData,
-        id: `user_${Date.now()}`,
+        id: currentUser?.id || `user_${Date.now()}`,
+        email: currentUser?.email,
+        userId: currentUser?.id,
         createdAt: new Date().toISOString(),
         photoUrl: `https://picsum.photos/400/600?random=${Math.random()}`,
         distance: 0
@@ -123,7 +133,7 @@ const Onboarding = () => {
   const renderStep1 = () => {
     return (
       <div style={styles.stepContainer}>
-        <h2>Welcome to Peach 🍑</h2>
+        <h2 style={styles.title}>Welcome to Peach 🍑</h2>
         <p style={styles.subtitle}>Let's create your profile to find your perfect match</p>
         
         <div style={styles.formGroup}>
@@ -201,7 +211,7 @@ const Onboarding = () => {
   const renderStep2 = () => {
     return (
       <div style={styles.stepContainer}>
-        <h2>Tell us about your life</h2>
+        <h2 style={styles.title}>Tell us about your life</h2>
         
         <div style={styles.formGroup}>
           <label style={styles.label}>Where are you based? *</label>
@@ -250,7 +260,7 @@ const Onboarding = () => {
   const renderStep3 = () => {
     return (
       <div style={styles.stepContainer}>
-        <h2>Your interests & values</h2>
+        <h2 style={styles.title}>Your interests & values</h2>
         
         <div style={styles.formGroup}>
           <label style={styles.label}>What do you do for fun? (Select up to 5)</label>
@@ -318,7 +328,7 @@ const Onboarding = () => {
   const renderStep4 = () => {
     return (
       <div style={styles.stepContainer}>
-        <h2>Final touches</h2>
+        <h2 style={styles.title}>Final touches</h2>
         
         <div style={styles.formGroup}>
           <label style={styles.label}>What are you looking for? *</label>
@@ -457,6 +467,11 @@ const styles = {
   },
   stepContainer: {
     padding: '20px 0'
+  },
+  title: {
+    fontSize: '1.5rem',
+    marginBottom: '10px',
+    color: '#333'
   },
   subtitle: {
     color: '#666',

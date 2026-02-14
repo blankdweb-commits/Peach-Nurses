@@ -69,10 +69,82 @@ export const UserProvider = ({ children }) => {
     }
   }, [subscription.expiresAt]);
 
-  const login = (userData) => {
-    setCurrentUser(userData);
-    localStorage.setItem('currentUser', JSON.stringify(userData));
+  // Login function (what Auth.js expects)
+  const login = (email, password) => {
+    try {
+      // Mock user database - in real app, this would be an API call
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      
+      // For demo purposes, accept test credentials
+      if (email === 'test@peach.com' && password === 'password') {
+        const userData = {
+          id: 'test_user_1',
+          email: 'test@peach.com',
+          username: 'testuser',
+          createdAt: new Date().toISOString()
+        };
+        setCurrentUser(userData);
+        localStorage.setItem('currentUser', JSON.stringify(userData));
+        return true;
+      }
+
+      // Check if user exists
+      const user = users.find(u => u.email === email && u.password === password);
+      if (user) {
+        const { password: _, ...userWithoutPassword } = user;
+        setCurrentUser(userWithoutPassword);
+        localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
+    }
   };
+
+  // Alias for Auth.js
+  const loginUser = login;
+
+  // Signup function (what Auth.js expects)
+  const signup = (email, password) => {
+    try {
+      // Get existing users
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      
+      // Check if email already exists
+      if (users.some(u => u.email === email)) {
+        return false;
+      }
+
+      // Create new user
+      const newUser = {
+        id: `user_${Date.now()}`,
+        email,
+        password, // In real app, hash this!
+        username: email.split('@')[0],
+        createdAt: new Date().toISOString()
+      };
+
+      // Save to users list (without password in currentUser)
+      users.push(newUser);
+      localStorage.setItem('users', JSON.stringify(users));
+
+      // Log user in
+      const { password: _, ...userWithoutPassword } = newUser;
+      setCurrentUser(userWithoutPassword);
+      localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
+      
+      return true;
+    } catch (error) {
+      console.error('Signup error:', error);
+      return false;
+    }
+  };
+
+  // Alias for Auth.js
+  const signupUser = signup;
 
   const logout = () => {
     setCurrentUser(null);
@@ -187,7 +259,7 @@ export const UserProvider = ({ children }) => {
     const mutualMatch = Math.random() > 0.7;
     
     if (mutualMatch) {
-      // Get match details from potential matches (you'll need to pass this)
+      // Get match details from potential matches
       const matchUser = JSON.parse(localStorage.getItem('potentialMatches') || '[]')
         .find(u => u.id === targetUserId);
       
@@ -229,6 +301,9 @@ export const UserProvider = ({ children }) => {
     matches,
     loading,
     login,
+    loginUser, // Add for Auth.js
+    signup,
+    signupUser, // Add for Auth.js
     logout,
     updateUserProfile,
     setOnboardingComplete: completeOnboarding,
