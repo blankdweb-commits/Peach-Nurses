@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useSwipeable } from 'react-swipeable';
 import { useUser } from '../context/UserContext';
 import AdBanner from './AdBanner';
-import Membership from './components/Membership';
 
 const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }) => {
   const { userProfile, incrementAdsSeen, subscription, updateUserProfile } = useUser();

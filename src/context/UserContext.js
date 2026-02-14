@@ -61,6 +61,7 @@ export const UserProvider = ({ children }) => {
 
     loadUserData();
   }, []);
+  
 
   // Load potential matches
   const loadPotentialMatches = () => {
