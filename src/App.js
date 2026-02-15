@@ -1,3 +1,4 @@
+// App.js
 import React, { useState, useEffect } from 'react';
 import { UserProvider, useUser } from './context/UserContext';
 import { AdminProvider } from './context/AdminContext';
