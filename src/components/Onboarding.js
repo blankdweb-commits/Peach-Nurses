@@ -101,28 +101,41 @@ const Onboarding = () => {
     });
   };
 
-  const handleNext = () => {
-    if (currentStep < 4) {
-      setCurrentStep(prev => prev + 1);
-    } else {
-      // Create complete profile linked to currentUser
+  const handleNext = async () => {
+  if (currentStep < 4) {
+    setCurrentStep(prev => prev + 1);
+  } else {
+    try {
+      // Create complete profile
       const completeProfile = {
-        ...formData,
-        id: currentUser?.id || `user_${Date.now()}`,
-        email: currentUser?.email,
-        userId: currentUser?.id,
-        createdAt: new Date().toISOString(),
-        photoUrl: `https://picsum.photos/400/600?random=${Math.random()}`,
-        distance: 0
+        username: formData.username,
+        alias: formData.alias || formData.username,
+        level: formData.level,
+        based: formData.based,
+        upbringing: formData.upbringing,
+        job: formData.job,
+        fun: formData.fun,
+        media: formData.media,
+        values: formData.values,
+        looking_for: formData.lookingFor,
+        vision: formData.vision,
+        special: formData.special,
+        photo_url: `https://picsum.photos/400/600?random=${Math.random()}`,
+        is_premium: false,
+        daily_unripes: 25
       };
       
-      // Save to context
-      updateUserProfile(completeProfile);
+      // Save to Supabase via context
+      await updateUserProfile(completeProfile);
       
-      // Mark onboarding as complete - this will trigger navigation to Discover
+      // Mark onboarding as complete
       setOnboardingComplete();
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Failed to save profile. Please try again.');
     }
-  };
+  }
+};
 
   const handleBack = () => {
     if (currentStep > 1) {

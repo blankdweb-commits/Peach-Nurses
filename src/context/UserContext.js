@@ -1,5 +1,6 @@
-// src/context/UserContext.js
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+// context/UserContext.js
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
 const UserContext = createContext();
 
@@ -18,272 +19,199 @@ export const UserProvider = ({ children }) => {
   const [subscription, setSubscription] = useState({
     isPremium: false,
     dailyUnripes: 25,
-    dailyLimit: 25,
-    plan: 'free',
-    expiresAt: null,
-    paymentHistory: []
+    dailyLimit: 25
   });
   const [adsSeen, setAdsSeen] = useState(0);
   const [ripenedUsers, setRipenedUsers] = useState([]);
   const [matches, setMatches] = useState([]);
-  const [chats, setChats] = useState({});
   const [loading, setLoading] = useState(true);
   const [potentialMatches, setPotentialMatches] = useState([]);
 
-  // Load user data from localStorage
+  // Listen to auth changes
   useEffect(() => {
-    const loadUserData = () => {
-      try {
-        const savedUser = localStorage.getItem('currentUser');
-        const savedProfile = localStorage.getItem('userProfile');
-        const savedOnboarding = localStorage.getItem('onboardingComplete');
-        const savedSubscription = localStorage.getItem('subscription');
-        const savedRipenedUsers = localStorage.getItem('ripenedUsers');
-        const savedMatches = localStorage.getItem('matches');
-        const savedChats = localStorage.getItem('chats');
-
-        if (savedUser) setCurrentUser(JSON.parse(savedUser));
-        if (savedProfile) setUserProfile(JSON.parse(savedProfile));
-        if (savedOnboarding) setOnboardingComplete(JSON.parse(savedOnboarding));
-        if (savedSubscription) setSubscription(JSON.parse(savedSubscription));
-        if (savedRipenedUsers) setRipenedUsers(JSON.parse(savedRipenedUsers));
-        if (savedMatches) setMatches(JSON.parse(savedMatches));
-        if (savedChats) setChats(JSON.parse(savedChats));
-
-        // Load mock potential matches
-        loadPotentialMatches();
-      } catch (error) {
-        console.error('Error loading user data:', error);
-      } finally {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        handleUserSession(session.user);
+      } else {
         setLoading(false);
       }
-    };
+    });
 
-    loadUserData();
-  }, []);
-  
-
-  // Load potential matches
-  const loadPotentialMatches = () => {
-    const MOCK_USERS = [
-      {
-        id: '1',
-        alias: "Nurse_Peachy99",
-        realName: "Nneka Okoro",
-        level: "Year 2",
-        based: "Sapele",
-        distance: 1.2,
-        photoUrl: `https://picsum.photos/400/600?random=1`,
-        basics: {
-          fun: ["Eating Boli", "Watching Nollywood", "Swimming"],
-          media: ["Afrobeats", "Davido", "K-Dramas"]
-        },
-        life: {
-          based: "Sapele",
-          upbringing: "Strict but loving, raised by grandma."
-        },
-        work: {
-          job: "Student Nurse",
-          reason: "Always wanted to help people heal."
-        },
-        relationships: {
-          values: ["Honesty", "God-fearing", "Family"],
-          lookingFor: "Long-term"
-        },
-        vision: "A simple life with a small clinic of my own someday.",
-        special: "Communication is key to everything.",
-        isOnline: true
-      },
-      {
-        id: '2',
-        alias: "Delta_Doc_Crush",
-        realName: "Emeka Efe",
-        level: "Intern",
-        based: "Warri",
-        distance: 15.0,
-        photoUrl: `https://picsum.photos/400/600?random=2`,
-        basics: {
-          fun: ["Gym", "Chopping Life", "Reading"],
-          media: ["Burna Boy", "Action Movies", "Afrobeats"]
-        },
-        life: {
-          based: "Warri",
-          upbringing: "Busy city life, big family."
-        },
-        work: {
-          job: "Medical Intern",
-          reason: "Medicine is challenging and rewarding."
-        },
-        relationships: {
-          values: ["Ambition", "Loyalty", "Respect"],
-          lookingFor: "Casual"
-        },
-        vision: "Traveling the world and saving lives.",
-        special: "Never go to bed angry.",
-        isOnline: false
-      },
-      {
-        id: '3',
-        alias: "Asaba_Angel",
-        realName: "Chidinma Obi",
-        level: "Year 3",
-        based: "Asaba",
-        distance: 45.0,
-        photoUrl: `https://picsum.photos/400/600?random=3`,
-        basics: {
-          fun: ["Cooking Egusi", "Church", "Reading"],
-          media: ["Gospel", "RomComs", "K-Dramas"]
-        },
-        life: {
-          based: "Asaba",
-          upbringing: "Quiet, religious home."
-        },
-        work: {
-          job: "Pediatric Nurse",
-          reason: "I love children."
-        },
-        relationships: {
-          values: ["God-fearing", "Family", "Honesty"],
-          lookingFor: "Marriage"
-        },
-        vision: "A happy family and a peaceful home.",
-        special: "Love is patient.",
-        isOnline: true
-      },
-      {
-        id: '4',
-        alias: "Ughelli_Medic",
-        realName: "Tega James",
-        level: "Intern",
-        based: "Ughelli",
-        distance: 25.0,
-        photoUrl: `https://picsum.photos/400/600?random=4`,
-        basics: {
-          fun: ["Playing Ludo", "Swimming", "Gym"],
-          media: ["Wizkid", "Action Movies", "Afrobeats"]
-        },
-        life: {
-          based: "Ughelli",
-          upbringing: "Adventurous, lots of outdoor play."
-        },
-        work: {
-          job: "Emergency Room Nurse",
-          reason: "The adrenaline and saving lives."
-        },
-        relationships: {
-          values: ["Humor", "Loyalty", "Ambition"],
-          lookingFor: "Long-term"
-        },
-        vision: "Building a hospital in my hometown.",
-        special: "Respect is earned, not given.",
-        isOnline: false
-      },
-      {
-        id: '5',
-        alias: "Sapele_Siren",
-        realName: "Blessing Keyamo",
-        level: "Year 1",
-        based: "Sapele",
-        distance: 2.5,
-        photoUrl: `https://picsum.photos/400/600?random=5`,
-        basics: {
-          fun: ["Sleeping", "Watching Nollywood", "Eating Boli"],
-          media: ["Davido", "RomComs", "Afrobeats"]
-        },
-        life: {
-          based: "Sapele",
-          upbringing: "Fun, chaotic, full of love."
-        },
-        work: {
-          job: "Student",
-          reason: "Stable career path."
-        },
-        relationships: {
-          values: ["Family", "Respect", "Honesty"],
-          lookingFor: "Study Buddy"
-        },
-        vision: "Passing exams and getting a good job.",
-        special: "Forgiveness heals the soul.",
-        isOnline: true
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        handleUserSession(session.user);
+      } else {
+        setCurrentUser(null);
+        setUserProfile(null);
+        setOnboardingComplete(false);
+        setLoading(false);
       }
-    ];
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Handle user session - load profile
+  const handleUserSession = async (user) => {
+    setCurrentUser(user);
     
-    setPotentialMatches(MOCK_USERS);
-    localStorage.setItem('potentialMatches', JSON.stringify(MOCK_USERS));
+    // Load user profile from profiles table
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profile) {
+      setUserProfile(profile);
+      setOnboardingComplete(true);
+      setSubscription({
+        isPremium: profile.is_premium || false,
+        dailyUnripes: profile.daily_unripes || 25,
+        dailyLimit: 25
+      });
+      
+      // Load ripened users
+      await loadRipenedUsers(user.id);
+      // Load matches
+      await loadMatches(user.id);
+      // Load potential matches
+      await loadPotentialMatches(user.id, profile);
+    } else {
+      // New user - needs onboarding
+      setUserProfile(null);
+      setOnboardingComplete(false);
+    }
+    
+    setLoading(false);
   };
 
-  // Check subscription expiry
-  useEffect(() => {
-    if (subscription.expiresAt && new Date(subscription.expiresAt) < new Date()) {
-      // Subscription expired
-      setSubscription(prev => ({
-        ...prev,
-        isPremium: false,
-        plan: 'free',
-        dailyLimit: 25,
-        dailyUnripes: 25
-      }));
+  // Load ripened users
+  const loadRipenedUsers = async (userId) => {
+    const { data, error } = await supabase
+      .from('ripens')
+      .select('target_user_id')
+      .eq('user_id', userId);
+
+    if (data) {
+      setRipenedUsers(data.map(r => r.target_user_id));
     }
-  }, [subscription.expiresAt]);
+  };
+
+  // Load mutual matches
+  const loadMatches = async (userId) => {
+    // Find mutual ripens where both users ripened each other
+    const { data, error } = await supabase
+      .from('ripens')
+      .select(`
+        id,
+        target_user_id,
+        profiles!ripens_target_user_id_fkey (
+          alias,
+          photo_url
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('is_mutual', true);
+
+    if (data) {
+      const matchList = data.map(r => ({
+        id: r.id,
+        userId: r.target_user_id,
+        alias: r.profiles?.alias,
+        photoUrl: r.profiles?.photo_url,
+        lastMessage: null,
+        lastMessageTime: null
+      }));
+      setMatches(matchList);
+    }
+  };
+
+  // Load potential matches (excluding ripened and current user)
+  const loadPotentialMatches = async (userId, profile) => {
+    // Get all users except current user
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .neq('id', userId);
+
+    if (data) {
+      // Filter out ripened users
+      const ripenedIds = ripenedUsers;
+      const filtered = data.filter(u => !ripenedIds.includes(u.id));
+      
+      // Calculate compatibility scores
+      const withScores = filtered.map(match => ({
+        ...match,
+        compatibility: calculateCompatibility(profile, match)
+      }));
+      
+      // Sort by compatibility
+      withScores.sort((a, b) => b.compatibility - a.compatibility);
+      
+      setPotentialMatches(withScores);
+    }
+  };
+
+  // Calculate compatibility score
+  const calculateCompatibility = (user, match) => {
+    if (!user?.fun || !match?.fun || !match?.values || !match?.based) return 0;
+    
+    const userFun = user.fun || [];
+    const userMedia = user.media || [];
+    const userValues = user.values || [];
+
+    const matchFun = match.fun || [];
+    const matchMedia = match.media || [];
+    const matchValues = match.values || [];
+
+    const commonFun = userFun.filter(f => matchFun.includes(f));
+    const commonMedia = userMedia.filter(m => matchMedia.includes(m));
+    const commonValues = userValues.filter(v => matchValues.includes(v));
+
+    let score = 0;
+    score += Math.min(commonFun.length * 7, 20);
+    score += Math.min(commonMedia.length * 7, 20);
+    score += Math.min(commonValues.length * 10, 30);
+
+    if (user.based === match.based) score += 20;
+    if (user.looking_for === match.looking_for) score += 10;
+
+    return Math.min(Math.round(score), 100);
+  };
 
   // Login function
-  const login = (email, password) => {
+  const loginUser = async (email, password) => {
     try {
-      const users = JSON.parse(localStorage.getItem('users') || '[]');
-      
-      if (email === 'test@peach.com' && password === 'password') {
-        const userData = {
-          id: 'test_user_1',
-          email: 'test@peach.com',
-          username: 'testuser',
-          createdAt: new Date().toISOString()
-        };
-        setCurrentUser(userData);
-        localStorage.setItem('currentUser', JSON.stringify(userData));
-        return true;
-      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-      const user = users.find(u => u.email === email && u.password === password);
-      if (user) {
-        const { password: _, ...userWithoutPassword } = user;
-        setCurrentUser(userWithoutPassword);
-        localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
-        return true;
-      }
-      
-      return false;
+      if (error) throw error;
+      return true;
     } catch (error) {
       console.error('Login error:', error);
       return false;
     }
   };
 
-  const loginUser = login;
-
   // Signup function
-  const signup = (email, password) => {
+  const signupUser = async (email, password) => {
     try {
-      const users = JSON.parse(localStorage.getItem('users') || '[]');
-      
-      if (users.some(u => u.email === email)) {
-        return false;
-      }
-
-      const newUser = {
-        id: `user_${Date.now()}`,
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        username: email.split('@')[0],
-        createdAt: new Date().toISOString()
-      };
+        options: {
+          data: {
+            username: email.split('@')[0] // Temporary username
+          }
+        }
+      });
 
-      users.push(newUser);
-      localStorage.setItem('users', JSON.stringify(users));
-
-      const { password: _, ...userWithoutPassword } = newUser;
-      setCurrentUser(userWithoutPassword);
-      localStorage.setItem('currentUser', JSON.stringify(userWithoutPassword));
-      
+      if (error) throw error;
       return true;
     } catch (error) {
       console.error('Signup error:', error);
@@ -291,194 +219,217 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  const signupUser = signup;
-
-  const logout = () => {
-    setCurrentUser(null);
-    setUserProfile(null);
-    setOnboardingComplete(false);
-    setSubscription({
-      isPremium: false,
-      dailyUnripes: 25,
-      dailyLimit: 25,
-      plan: 'free',
-      expiresAt: null,
-      paymentHistory: []
-    });
-    setRipenedUsers([]);
-    setMatches([]);
-    setChats({});
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('userProfile');
-    localStorage.removeItem('onboardingComplete');
-    localStorage.removeItem('subscription');
-    localStorage.removeItem('ripenedUsers');
-    localStorage.removeItem('matches');
-    localStorage.removeItem('chats');
+  // Logout function
+  const logoutUser = async () => {
+    await supabase.auth.signOut();
   };
 
-  const updateUserProfile = (profileData) => {
-    const updatedProfile = { ...userProfile, ...profileData };
-    setUserProfile(updatedProfile);
-    localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
-    return updatedProfile;
+  // Update user profile (after onboarding)
+  const updateUserProfile = async (profileData) => {
+    if (!currentUser) return null;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: currentUser.id,
+        ...profileData,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (data) {
+      setUserProfile(data);
+      return data;
+    }
+    return null;
   };
 
+  // Complete onboarding
   const completeOnboarding = () => {
     setOnboardingComplete(true);
-    localStorage.setItem('onboardingComplete', JSON.stringify(true));
-  };
-
-  // Upgrade to premium
-  const upgradeToPremium = async (paymentDetails) => {
-    try {
-      const newSubscription = {
-        isPremium: true,
-        dailyUnripes: 999,
-        dailyLimit: 999,
-        plan: 'premium',
-        paymentMethod: paymentDetails.paymentMethod,
-        reference: paymentDetails.reference,
-        amount: paymentDetails.amount,
-        upgradedAt: new Date().toISOString(),
-        expiresAt: paymentDetails.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        paymentHistory: [
-          ...subscription.paymentHistory,
-          {
-            ...paymentDetails,
-            date: new Date().toISOString()
-          }
-        ]
-      };
-
-      setSubscription(newSubscription);
-      localStorage.setItem('subscription', JSON.stringify(newSubscription));
-      
-      return true;
-    } catch (error) {
-      console.error('Error upgrading to premium:', error);
-      return false;
-    }
-  };
-
-  // Cancel premium subscription
-  const cancelPremium = () => {
-    const updatedSubscription = {
-      ...subscription,
-      isPremium: false,
-      plan: 'free',
-      dailyLimit: 25,
-      dailyUnripes: 25
-    };
-    
-    setSubscription(updatedSubscription);
-    localStorage.setItem('subscription', JSON.stringify(updatedSubscription));
-  };
-
-  // Send a message
-  const sendMessage = (matchId, text) => {
-    const newMessage = {
-      id: `msg_${Date.now()}_${Math.random()}`,
-      text,
-      sender: 'me',
-      timestamp: new Date().toISOString(),
-      read: false
-    };
-
-    setChats(prev => {
-      const updatedChats = {
-        ...prev,
-        [matchId]: [...(prev[matchId] || []), newMessage]
-      };
-      localStorage.setItem('chats', JSON.stringify(updatedChats));
-      return updatedChats;
-    });
   };
 
   // Ripen a match
   const ripenMatch = async (targetUserId) => {
-    const today = new Date().toISOString().split('T')[0];
-    const dailyRipens = JSON.parse(localStorage.getItem('dailyRipens') || '[]');
-    const todayRipens = dailyRipens.filter(date => date === today);
-    
-    const dailyLimit = subscription.isPremium ? 999 : 25;
-    if (todayRipens.length >= dailyLimit) {
-      return false;
-    }
+    if (!currentUser) return false;
 
-    if (ripenedUsers.includes(targetUserId)) {
-      return false;
-    }
+    try {
+      // Check daily limit
+      const today = new Date().toISOString().split('T')[0];
+      const { data: dailyData } = await supabase
+        .from('daily_ripens')
+        .select('count')
+        .eq('user_id', currentUser.id)
+        .eq('ripened_date', today)
+        .maybeSingle();
 
-    const newRipenedUsers = [...ripenedUsers, targetUserId];
-    setRipenedUsers(newRipenedUsers);
-    localStorage.setItem('ripenedUsers', JSON.stringify(newRipenedUsers));
-    
-    dailyRipens.push(today);
-    localStorage.setItem('dailyRipens', JSON.stringify(dailyRipens));
+      const dailyCount = dailyData?.count || 0;
+      const dailyLimit = subscription.isPremium ? 999 : 25;
 
-    if (!subscription.isPremium) {
-      const remaining = Math.max(0, dailyLimit - (todayRipens.length + 1));
-      setSubscription(prev => ({ 
-        ...prev, 
-        dailyUnripes: remaining 
-      }));
-      localStorage.setItem('subscription', JSON.stringify({
-        ...subscription,
-        dailyUnripes: remaining
-      }));
-    }
-
-    // Check for mutual match (30% chance)
-    const mutualMatch = Math.random() > 0.7;
-    
-    if (mutualMatch) {
-      const matchUser = potentialMatches.find(u => u.id === targetUserId);
-      
-      if (matchUser) {
-        const newMatch = {
-          id: targetUserId,
-          userId: targetUserId,
-          alias: matchUser.alias,
-          realName: matchUser.realName,
-          photoUrl: matchUser.photoUrl,
-          level: matchUser.level,
-          basics: matchUser.basics,
-          matchedAt: new Date().toISOString(),
-          lastMessage: null,
-          lastMessageTime: null,
-          isOnline: matchUser.isOnline || false
-        };
-        
-        const updatedMatches = [...matches, newMatch];
-        setMatches(updatedMatches);
-        localStorage.setItem('matches', JSON.stringify(updatedMatches));
-        
-        // Initialize chat for this match
-        setChats(prev => {
-          const updatedChats = { ...prev, [targetUserId]: [] };
-          localStorage.setItem('chats', JSON.stringify(updatedChats));
-          return updatedChats;
-        });
+      if (dailyCount >= dailyLimit) {
+        return false;
       }
-    }
 
-    return true;
+      // Check if already ripened
+      const { data: existing } = await supabase
+        .from('ripens')
+        .select('id')
+        .eq('user_id', currentUser.id)
+        .eq('target_user_id', targetUserId)
+        .maybeSingle();
+
+      if (existing) {
+        return false;
+      }
+
+      // Insert ripen
+      const { data: ripenData, error: ripenError } = await supabase
+        .from('ripens')
+        .insert({
+          user_id: currentUser.id,
+          target_user_id: targetUserId
+        })
+        .select()
+        .single();
+
+      if (ripenError) throw ripenError;
+
+      // Update daily count
+      if (dailyData) {
+        await supabase
+          .from('daily_ripens')
+          .update({ count: dailyCount + 1 })
+          .eq('user_id', currentUser.id)
+          .eq('ripened_date', today);
+      } else {
+        await supabase
+          .from('daily_ripens')
+          .insert({
+            user_id: currentUser.id,
+            ripened_date: today,
+            count: 1
+          });
+      }
+
+      // Check for mutual match
+      const { data: mutualCheck } = await supabase
+        .from('ripens')
+        .select('id')
+        .eq('user_id', targetUserId)
+        .eq('target_user_id', currentUser.id)
+        .maybeSingle();
+
+      if (mutualCheck) {
+        // Update both ripens as mutual
+        await supabase
+          .from('ripens')
+          .update({ is_mutual: true })
+          .eq('id', ripenData.id);
+
+        await supabase
+          .from('ripens')
+          .update({ is_mutual: true })
+          .eq('id', mutualCheck.id);
+
+        // Refresh matches
+        await loadMatches(currentUser.id);
+      }
+
+      // Update local state
+      setRipenedUsers(prev => [...prev, targetUserId]);
+
+      // Update daily unripes count
+      if (!subscription.isPremium) {
+        const remaining = dailyLimit - (dailyCount + 1);
+        setSubscription(prev => ({ ...prev, dailyUnripes: remaining }));
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error ripening match:', error);
+      return false;
+    }
   };
 
+  // Check if user is ripped
   const isRipped = (userId) => {
     return ripenedUsers.includes(userId);
   };
 
-  const incrementAdsSeen = () => {
-    setAdsSeen(prev => prev + 1);
-    localStorage.setItem('adsSeen', JSON.stringify(adsSeen + 1));
+  // Send message
+  const sendMessage = async (matchId, content) => {
+    if (!currentUser) return;
+
+    // Find the ripen record for this match
+    const { data: ripen } = await supabase
+      .from('ripens')
+      .select('id, user_id, target_user_id')
+      .eq('id', matchId)
+      .single();
+
+    if (!ripen) return;
+
+    const receiverId = ripen.user_id === currentUser.id 
+      ? ripen.target_user_id 
+      : ripen.user_id;
+
+    const { error } = await supabase
+      .from('messages')
+      .insert({
+        match_id: matchId,
+        sender_id: currentUser.id,
+        receiver_id: receiverId,
+        content
+      });
+
+    if (!error) {
+      // Refresh messages (you'll need to implement this in Chat component)
+    }
   };
 
-  // Get ripped matches (for ChatList)
-  const rippedMatches = useMemo(() => {
-    return matches.filter(match => ripenedUsers.includes(match.id));
-  }, [matches, ripenedUsers]);
+  // Grant premium (admin only)
+  const grantPremium = async (userId) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_premium: true })
+      .eq('id', userId);
+
+    if (!error && userId === currentUser?.id) {
+      setSubscription(prev => ({ ...prev, isPremium: true }));
+    }
+  };
+
+  // Revoke premium (admin only)
+  const revokePremium = async (userId) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_premium: false })
+      .eq('id', userId);
+
+    if (!error && userId === currentUser?.id) {
+      setSubscription(prev => ({ ...prev, isPremium: false }));
+    }
+  };
+
+  // Ban user (admin only)
+  const banUser = async (userId) => {
+    // You might want to add a 'banned' column to profiles
+    // This is a placeholder
+    console.log('Ban user:', userId);
+  };
+
+  // Delete user (admin only)
+  const deleteUser = async (userId) => {
+    // This requires admin privileges in Supabase
+    // You might want to use a server-side function
+    console.log('Delete user:', userId);
+  };
+
+  // Increment ads seen
+  const incrementAdsSeen = () => {
+    setAdsSeen(prev => prev + 1);
+  };
 
   const value = {
     currentUser,
@@ -488,23 +439,21 @@ export const UserProvider = ({ children }) => {
     adsSeen,
     ripenedUsers,
     matches,
-    chats,
-    loading,
     potentialMatches,
-    rippedMatches,
-    login,
+    loading,
     loginUser,
-    signup,
     signupUser,
-    logout,
+    logoutUser,
     updateUserProfile,
-    setOnboardingComplete: completeOnboarding,
-    upgradeToPremium,
-    cancelPremium,
+    completeOnboarding,
     ripenMatch,
     isRipped,
-    incrementAdsSeen,
-    sendMessage
+    sendMessage,
+    grantPremium,
+    revokePremium,
+    banUser,
+    deleteUser,
+    incrementAdsSeen
   };
 
   return (
