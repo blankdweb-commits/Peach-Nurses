@@ -1,7 +1,7 @@
 // components/Onboarding.js
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
-
+ 
 const Onboarding = () => {
   const { currentUser, updateUserProfile, setOnboardingComplete } = useUser();
   const [currentStep, setCurrentStep] = useState(1);
