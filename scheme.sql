@@ -25,28 +25,31 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Row Level Security (RLS) policies
+-- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Policy: Users can view other profiles
+-- Drop existing policies if they exist (to avoid conflicts)
+DROP POLICY IF EXISTS "Users can view other profiles" ON profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON profiles;
+
+-- Create policies
 CREATE POLICY "Users can view other profiles"
   ON profiles FOR SELECT
   USING (true);
 
--- Policy: Users can update their own profile
 CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
   USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
--- Policy: Users can insert their own profile
 CREATE POLICY "Users can insert own profile"
   ON profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
 
--- 2. RIPEN_HISTORY TABLE (tracks likes/swipes)
+-- 2. RIPEN_HISTORY TABLE
 CREATE TABLE IF NOT EXISTS ripen_history (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   target_user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -54,6 +57,9 @@ CREATE TABLE IF NOT EXISTS ripen_history (
 );
 
 ALTER TABLE ripen_history ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own ripen history" ON ripen_history;
+DROP POLICY IF EXISTS "Users can create ripen history" ON ripen_history;
 
 CREATE POLICY "Users can view own ripen history"
   ON ripen_history FOR SELECT
@@ -74,6 +80,9 @@ CREATE TABLE IF NOT EXISTS chat_rooms (
 
 ALTER TABLE chat_rooms ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their chat rooms" ON chat_rooms;
+DROP POLICY IF EXISTS "Users can insert chat rooms" ON chat_rooms;
+
 CREATE POLICY "Users can view their chat rooms"
   ON chat_rooms FOR SELECT
   USING (auth.uid() = ANY(participants));
@@ -84,7 +93,7 @@ CREATE POLICY "Users can insert chat rooms"
 
 -- 4. MESSAGES TABLE
 CREATE TABLE IF NOT EXISTS messages (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   chat_room_id TEXT REFERENCES chat_rooms(id) ON DELETE CASCADE NOT NULL,
   sender_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   content TEXT NOT NULL,
@@ -93,6 +102,9 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view messages in their chat rooms" ON messages;
+DROP POLICY IF EXISTS "Users can send messages" ON messages;
 
 CREATE POLICY "Users can view messages in their chat rooms"
   ON messages FOR SELECT
@@ -108,7 +120,7 @@ CREATE POLICY "Users can send messages"
 
 -- 5. NOTIFICATIONS TABLE
 CREATE TABLE IF NOT EXISTS notifications (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   type TEXT NOT NULL,
   message TEXT NOT NULL,
@@ -118,6 +130,9 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own notifications" ON notifications;
+DROP POLICY IF EXISTS "System can create notifications" ON notifications;
+
 CREATE POLICY "Users can view own notifications"
   ON notifications FOR SELECT
   USING (auth.uid() = user_id);
@@ -126,9 +141,9 @@ CREATE POLICY "System can create notifications"
   ON notifications FOR INSERT
   WITH CHECK (true);
 
--- 6. ADS TABLE (for business accounts)
+-- 6. ADS TABLE
 CREATE TABLE IF NOT EXISTS ads (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   business_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   title TEXT NOT NULL,
   headline TEXT NOT NULL,
@@ -141,6 +156,9 @@ CREATE TABLE IF NOT EXISTS ads (
 
 ALTER TABLE ads ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view active ads" ON ads;
+DROP POLICY IF EXISTS "Business owners can manage their ads" ON ads;
+
 CREATE POLICY "Users can view active ads"
   ON ads FOR SELECT
   USING (active = true);
@@ -152,7 +170,7 @@ CREATE POLICY "Business owners can manage their ads"
 
 -- 7. KYC_VERIFICATIONS TABLE
 CREATE TABLE IF NOT EXISTS kyc_verifications (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE UNIQUE NOT NULL,
   full_name TEXT,
   id_type TEXT,
@@ -167,6 +185,10 @@ CREATE TABLE IF NOT EXISTS kyc_verifications (
 );
 
 ALTER TABLE kyc_verifications ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own KYC" ON kyc_verifications;
+DROP POLICY IF EXISTS "Users can submit KYC" ON kyc_verifications;
+DROP POLICY IF EXISTS "Users can update own KYC" ON kyc_verifications;
 
 CREATE POLICY "Users can view own KYC"
   ON kyc_verifications FOR SELECT
@@ -183,7 +205,7 @@ CREATE POLICY "Users can update own KYC"
 
 -- 8. FEEDBACK TABLE
 CREATE TABLE IF NOT EXISTS feedback (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
   message TEXT NOT NULL,
@@ -191,6 +213,9 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 
 ALTER TABLE feedback ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can submit feedback" ON feedback;
+DROP POLICY IF EXISTS "Admins can view feedback" ON feedback;
 
 CREATE POLICY "Users can submit feedback"
   ON feedback FOR INSERT
@@ -200,15 +225,15 @@ CREATE POLICY "Admins can view feedback"
   ON feedback FOR SELECT
   USING (auth.uid() IN (SELECT id FROM profiles WHERE email LIKE '%@admin.peaches%'));
 
--- Create indexes for better performance
-CREATE INDEX idx_profiles_location ON profiles USING GIN(location);
-CREATE INDEX idx_profiles_onboarding ON profiles(onboarding_complete) WHERE onboarding_complete = true;
-CREATE INDEX idx_ripen_history_user ON ripen_history(user_id, created_at);
-CREATE INDEX idx_ripen_history_target ON ripen_history(target_user_id, created_at);
-CREATE INDEX idx_chat_rooms_participants ON chat_rooms USING GIN(participants);
-CREATE INDEX idx_messages_chat_room ON messages(chat_room_id, created_at);
-CREATE INDEX idx_notifications_user ON notifications(user_id, created_at DESC);
-CREATE INDEX idx_ads_business ON ads(business_id, created_at DESC);
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_profiles_location ON profiles USING GIN(location);
+CREATE INDEX IF NOT EXISTS idx_profiles_onboarding ON profiles(onboarding_complete) WHERE onboarding_complete = true;
+CREATE INDEX IF NOT EXISTS idx_ripen_history_user ON ripen_history(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_ripen_history_target ON ripen_history(target_user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_rooms_participants ON chat_rooms USING GIN(participants);
+CREATE INDEX IF NOT EXISTS idx_messages_chat_room ON messages(chat_room_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ads_business ON ads(business_id, created_at DESC);
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -219,7 +244,11 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Triggers for updated_at
+-- Drop triggers if they exist
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
+DROP TRIGGER IF EXISTS update_kyc_updated_at ON kyc_verifications;
+
+-- Create triggers
 CREATE TRIGGER update_profiles_updated_at 
   BEFORE UPDATE ON profiles 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -233,13 +262,17 @@ CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, name)
-  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'name');
+  VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)))
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger to create profile after signup
-CREATE OR REPLACE TRIGGER on_auth_user_created
+-- Drop trigger if exists
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
+-- Create trigger
+CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
@@ -271,14 +304,18 @@ BEGIN
     INSERT INTO notifications (user_id, type, message)
     VALUES 
       (NEW.user_id, 'match', 'You have a new match!'),
-      (NEW.target_user_id, 'match', 'You have a new match!');
+      (NEW.target_user_id, 'match', 'You have a new match!')
+    ON CONFLICT DO NOTHING;
   END IF;
 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger to check for mutual matches
-CREATE OR REPLACE TRIGGER on_ripen_created
+-- Drop trigger if exists
+DROP TRIGGER IF EXISTS on_ripen_created ON ripen_history;
+
+-- Create trigger
+CREATE TRIGGER on_ripen_created
   AFTER INSERT ON ripen_history
   FOR EACH ROW EXECUTE FUNCTION check_mutual_match();

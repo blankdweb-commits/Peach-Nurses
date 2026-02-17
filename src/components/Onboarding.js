@@ -1,11 +1,15 @@
 // components/Onboarding.js
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
- 
+import LoadingSpinner from './LoadingSpinner';
+import ErrorDisplay from './ErrorDisplay';
+import { getErrorMessage } from '../utils/errorHandler';
+
 const Onboarding = () => {
   const { currentUser, updateUserProfile, setOnboardingComplete } = useUser();
   const [currentStep, setCurrentStep] = useState(1);
-  const [loading, setLoading] = useState(false); // ✅ Moved to top level
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
     username: '',
     alias: '',
@@ -30,8 +34,9 @@ const Onboarding = () => {
 
   // Pre-fill username from signup if available
   useEffect(() => {
-    if (currentUser?.username && !formData.username) {
-      setFormData(prev => ({ ...prev, username: currentUser.username }));
+    if (currentUser?.email && !formData.username) {
+      const suggestedUsername = currentUser.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+      setFormData(prev => ({ ...prev, username: suggestedUsername }));
     }
   }, [currentUser, formData.username]);
 
@@ -45,28 +50,35 @@ const Onboarding = () => {
 
     setCheckingUsername(true);
     
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const takenUsernames = ['peachlover', 'deltaqueen', 'goldennurse', 'nursejohn', 'medstudent'];
-    
-    if (takenUsernames.includes(username.toLowerCase())) {
-      setUsernameAvailable(false);
-      setUsernameMessage('Username is already taken');
-    } else if (username.length < 3) {
-      setUsernameAvailable(false);
-      setUsernameMessage('Username must be at least 3 characters');
-    } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-      setUsernameAvailable(false);
-      setUsernameMessage('Only letters, numbers, and underscores allowed');
-    } else if (username.length > 20) {
-      setUsernameAvailable(false);
-      setUsernameMessage('Username must be 20 characters or less');
-    } else {
-      setUsernameAvailable(true);
-      setUsernameMessage('Username is available!');
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const takenUsernames = ['peachlover', 'deltaqueen', 'goldennurse', 'nursejohn', 'medstudent'];
+      
+      if (takenUsernames.includes(username.toLowerCase())) {
+        setUsernameAvailable(false);
+        setUsernameMessage('Username is already taken');
+      } else if (username.length < 3) {
+        setUsernameAvailable(false);
+        setUsernameMessage('Username must be at least 3 characters');
+      } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        setUsernameAvailable(false);
+        setUsernameMessage('Only letters, numbers, and underscores allowed');
+      } else if (username.length > 20) {
+        setUsernameAvailable(false);
+        setUsernameMessage('Username must be 20 characters or less');
+      } else {
+        setUsernameAvailable(true);
+        setUsernameMessage('Username is available!');
+      }
+    } catch (err) {
+      console.error('Username check error:', err);
+      setUsernameAvailable(null);
+      setUsernameMessage('Unable to check username availability');
+    } finally {
+      setCheckingUsername(false);
     }
-    
-    setCheckingUsername(false);
   };
 
   // Debounced username check
@@ -105,37 +117,50 @@ const Onboarding = () => {
       setCurrentStep(prev => prev + 1);
     } else {
       try {
-        setLoading(true); // ✅ Now defined
+        setLoading(true);
+        setError(null);
         
+        // Validate required fields
+        if (!formData.username || !formData.level || !formData.based || !formData.job || !formData.lookingFor) {
+          throw new Error('Please fill in all required fields');
+        }
+
+        if (usernameAvailable !== true) {
+          throw new Error('Please choose an available username');
+        }
+
         const completeProfile = {
           username: formData.username,
           alias: formData.alias || formData.username,
           real_name: formData.alias || formData.username,
           level: formData.level,
           based: formData.based,
-          upbringing: formData.upbringing,
+          upbringing: formData.upbringing || '',
           job: formData.job,
           fun: formData.fun,
           media: formData.media,
           values: formData.values,
           looking_for: formData.lookingFor,
-          vision: formData.vision,
-          special: formData.special,
+          vision: formData.vision || '',
+          special: formData.special || '',
           photo_url: `https://picsum.photos/400/600?random=${Math.random()}`,
           is_premium: false,
           daily_unripes: 25
         };
         
+        console.log('Saving profile:', completeProfile);
         const saved = await updateUserProfile(completeProfile);
         
         if (saved) {
+          console.log('Profile saved successfully');
           setOnboardingComplete();
         } else {
-          alert('Failed to save profile. Please try again.');
+          throw new Error('Failed to save profile. Please try again.');
         }
       } catch (error) {
         console.error('Error saving profile:', error);
-        alert('An error occurred. Please try again.');
+        const errorInfo = getErrorMessage(error, 'onboarding');
+        setError(errorInfo);
       } finally {
         setLoading(false);
       }
@@ -146,6 +171,11 @@ const Onboarding = () => {
     if (currentStep > 1) {
       setCurrentStep(prev => prev - 1);
     }
+  };
+
+  const handleRetry = () => {
+    setError(null);
+    handleNext();
   };
 
   const renderStep1 = () => {
@@ -171,6 +201,7 @@ const Onboarding = () => {
                 ...(usernameAvailable === true ? styles.usernameAvailable : {}),
                 ...(usernameAvailable === false ? styles.usernameTaken : {})
               }}
+              disabled={loading}
             />
             {checkingUsername && (
               <span style={styles.checkingIndicator}>Checking...</span>
@@ -200,6 +231,7 @@ const Onboarding = () => {
             placeholder="e.g., Golden Nurse, Delta Queen"
             maxLength={20}
             style={styles.input}
+            disabled={loading}
           />
           <small style={styles.small}>This is how others will see you. You can change it anytime.</small>
         </div>
@@ -216,6 +248,7 @@ const Onboarding = () => {
                   ...(formData.level === level ? styles.selectedOption : {})
                 }}
                 onClick={() => handleInputChange('level', level)}
+                disabled={loading}
               >
                 {level}
               </button>
@@ -243,6 +276,7 @@ const Onboarding = () => {
                   ...(formData.based === location ? styles.selectedOption : {})
                 }}
                 onClick={() => handleInputChange('based', location)}
+                disabled={loading}
               >
                 {location}
               </button>
@@ -258,6 +292,7 @@ const Onboarding = () => {
             placeholder="Share about your family, background, culture..."
             rows={4}
             style={styles.textarea}
+            disabled={loading}
           />
         </div>
 
@@ -269,6 +304,7 @@ const Onboarding = () => {
             onChange={(e) => handleInputChange('job', e.target.value)}
             placeholder="e.g., Nurse, Student, Entrepreneur"
             style={styles.input}
+            disabled={loading}
           />
         </div>
       </div>
@@ -293,7 +329,7 @@ const Onboarding = () => {
                   ...(formData.fun.length >= 5 && !formData.fun.includes(item) ? styles.disabledOption : {})
                 }}
                 onClick={() => handleMultiSelect('fun', item)}
-                disabled={formData.fun.length >= 5 && !formData.fun.includes(item)}
+                disabled={formData.fun.length >= 5 && !formData.fun.includes(item) || loading}
               >
                 {item}
               </button>
@@ -314,6 +350,7 @@ const Onboarding = () => {
                   ...(formData.media.includes(item) ? styles.selectedOption : {})
                 }}
                 onClick={() => handleMultiSelect('media', item)}
+                disabled={loading}
               >
                 {item}
               </button>
@@ -333,6 +370,7 @@ const Onboarding = () => {
                   ...(formData.values.includes(item) ? styles.selectedOption : {})
                 }}
                 onClick={() => handleMultiSelect('values', item)}
+                disabled={loading}
               >
                 {item}
               </button>
@@ -354,6 +392,7 @@ const Onboarding = () => {
             value={formData.lookingFor}
             onChange={(e) => handleInputChange('lookingFor', e.target.value)}
             style={styles.select}
+            disabled={loading}
           >
             <option value="">Select one...</option>
             <option value="Serious Relationship">Serious Relationship</option>
@@ -372,6 +411,7 @@ const Onboarding = () => {
             placeholder="Where do you see yourself in 5 years? What are your dreams?"
             rows={4}
             style={styles.textarea}
+            disabled={loading}
           />
         </div>
 
@@ -383,6 +423,7 @@ const Onboarding = () => {
             placeholder="Share something unique about yourself..."
             rows={4}
             style={styles.textarea}
+            disabled={loading}
           />
         </div>
       </div>
@@ -412,54 +453,256 @@ const Onboarding = () => {
     (currentStep === 4 && !isStep4Valid()) ||
     loading;
 
+  if (loading && currentStep === 4) {
+    return <LoadingSpinner message="Creating your profile..." />;
+  }
+
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <div style={styles.progressBar}>
-          <div 
-            style={{ ...styles.progressFill, width: `${progressPercentage}%` }}
-          ></div>
+    <>
+      {error && (
+        <ErrorDisplay 
+          error={error} 
+          onRetry={handleRetry} 
+          onDismiss={() => setError(null)} 
+        />
+      )}
+      <div style={styles.container}>
+        <div style={styles.header}>
+          <div style={styles.progressBar}>
+            <div 
+              style={{ ...styles.progressFill, width: `${progressPercentage}%` }}
+            />
+          </div>
+          <div style={styles.stepIndicator}>Step {currentStep} of 4</div>
         </div>
-        <div style={styles.stepIndicator}>Step {currentStep} of 4</div>
-      </div>
 
-      <div style={styles.content}>
-        {currentStep === 1 && renderStep1()}
-        {currentStep === 2 && renderStep2()}
-        {currentStep === 3 && renderStep3()}
-        {currentStep === 4 && renderStep4()}
-      </div>
+        <div style={styles.content}>
+          {currentStep === 1 && renderStep1()}
+          {currentStep === 2 && renderStep2()}
+          {currentStep === 3 && renderStep3()}
+          {currentStep === 4 && renderStep4()}
+        </div>
 
-      <div style={styles.footer}>
-        <div style={styles.buttonGroup}>
-          {currentStep > 1 && (
+        <div style={styles.footer}>
+          <div style={styles.buttonGroup}>
+            {currentStep > 1 && (
+              <button 
+                type="button" 
+                style={styles.backButton}
+                onClick={handleBack}
+                disabled={loading}
+              >
+                ← Back
+              </button>
+            )}
+            
             <button 
               type="button" 
-              style={styles.backButton}
-              onClick={handleBack}
-              disabled={loading}
+              style={{
+                ...styles.continueButton,
+                ...(isContinueDisabled ? styles.disabledButton : {})
+              }}
+              onClick={handleNext}
+              disabled={isContinueDisabled}
             >
-              ← Back
+              {loading ? 'Saving...' : (currentStep === 4 ? 'Complete Profile' : 'Continue →')}
             </button>
-          )}
-          
-          <button 
-            type="button" 
-            style={{
-              ...styles.continueButton,
-              ...(isContinueDisabled ? styles.disabledButton : {})
-            }}
-            onClick={handleNext}
-            disabled={isContinueDisabled}
-          >
-            {loading ? 'Saving...' : (currentStep === 4 ? 'Complete Profile' : 'Continue →')}
-          </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
-const styles = { /* ... (unchanged) ... */ };
+const styles = {
+  container: {
+    padding: '20px',
+    maxWidth: '600px',
+    margin: '0 auto',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    minHeight: '100vh',
+    backgroundColor: 'white'
+  },
+  header: {
+    marginBottom: '30px'
+  },
+  progressBar: {
+    height: '8px',
+    backgroundColor: '#f0f0f0',
+    borderRadius: '4px',
+    overflow: 'hidden',
+    marginBottom: '10px'
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#FF6347',
+    transition: 'width 0.3s ease'
+  },
+  stepIndicator: {
+    textAlign: 'center',
+    color: '#666',
+    fontSize: '0.9rem'
+  },
+  content: {
+    marginBottom: '100px'
+  },
+  stepContainer: {
+    padding: '20px 0'
+  },
+  title: {
+    fontSize: '1.5rem',
+    marginBottom: '10px',
+    color: '#333'
+  },
+  subtitle: {
+    color: '#666',
+    marginBottom: '30px',
+    textAlign: 'center'
+  },
+  formGroup: {
+    marginBottom: '25px'
+  },
+  label: {
+    display: 'block',
+    marginBottom: '8px',
+    fontWeight: '600',
+    color: '#333'
+  },
+  requirement: {
+    fontWeight: 'normal',
+    fontSize: '0.9em',
+    color: '#666'
+  },
+  usernameInputContainer: {
+    position: 'relative'
+  },
+  input: {
+    width: '100%',
+    padding: '12px 16px',
+    borderRadius: '8px',
+    border: '1px solid #ddd',
+    fontSize: '16px',
+    boxSizing: 'border-box'
+  },
+  usernameAvailable: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#F0FFF4'
+  },
+  usernameTaken: {
+    borderColor: '#FF6347',
+    backgroundColor: '#FFF0E6'
+  },
+  checkingIndicator: {
+    position: 'absolute',
+    right: '12px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: '#666',
+    fontSize: '0.9em'
+  },
+  usernameMessage: {
+    marginTop: '5px',
+    padding: '8px 12px',
+    borderRadius: '4px',
+    fontSize: '0.9em'
+  },
+  usernameSuccess: {
+    backgroundColor: '#E8F5E9',
+    color: '#2E7D32',
+    border: '1px solid #C8E6C9'
+  },
+  usernameError: {
+    backgroundColor: '#FFEBEE',
+    color: '#C62828',
+    border: '1px solid #FFCDD2'
+  },
+  textarea: {
+    width: '100%',
+    padding: '12px 16px',
+    borderRadius: '8px',
+    border: '1px solid #ddd',
+    fontSize: '16px',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+    resize: 'vertical'
+  },
+  select: {
+    width: '100%',
+    padding: '12px 16px',
+    borderRadius: '8px',
+    border: '1px solid #ddd',
+    fontSize: '16px',
+    backgroundColor: 'white',
+    boxSizing: 'border-box'
+  },
+  small: {
+    display: 'block',
+    marginTop: '5px',
+    color: '#666',
+    fontSize: '0.85rem'
+  },
+  optionsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '10px',
+    marginBottom: '10px'
+  },
+  optionBtn: {
+    padding: '12px',
+    border: '2px solid #e0e0e0',
+    borderRadius: '8px',
+    backgroundColor: 'white',
+    fontSize: '14px',
+    cursor: 'pointer',
+    transition: 'all 0.2s'
+  },
+  selectedOption: {
+    borderColor: '#FF6347',
+    backgroundColor: '#FFF0E6',
+    color: '#FF6347',
+    fontWeight: '600'
+  },
+  disabledOption: {
+    opacity: 0.5,
+    cursor: 'not-allowed'
+  },
+  footer: {
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'white',
+    padding: '20px',
+    boxShadow: '0 -2px 10px rgba(0,0,0,0.1)'
+  },
+  buttonGroup: {
+    display: 'flex',
+    gap: '15px'
+  },
+  backButton: {
+    flex: 1,
+    padding: '15px',
+    border: '2px solid #e0e0e0',
+    borderRadius: '8px',
+    backgroundColor: 'white',
+    fontSize: '16px',
+    cursor: 'pointer'
+  },
+  continueButton: {
+    flex: 2,
+    padding: '15px',
+    border: 'none',
+    borderRadius: '8px',
+    backgroundColor: '#FF6347',
+    color: 'white',
+    fontSize: '16px',
+    fontWeight: '600',
+    cursor: 'pointer'
+  },
+  disabledButton: {
+    opacity: 0.5,
+    cursor: 'not-allowed'
+  }
+};
 
 export default Onboarding;

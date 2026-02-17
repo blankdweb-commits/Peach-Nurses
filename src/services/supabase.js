@@ -1,17 +1,12 @@
-// services/supabase.js
+// services/supabase.js - TEMPORARY FOR TESTING
 import { createClient } from '@supabase/supabase-js';
 
-// For development only - replace with your actual credentials when ready
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://your-project.supabase.co';
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'your-anon-key';
+// TODO: Move back to .env after testing
+const supabaseUrl = 'https://gztcwtcxptpypouowosv.supabase.co';
+const supabaseAnonKey = 'sb_publishable_HrB7ZUfnpep15QTofH7n3w_l45iG5J7';
 
-if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('your-project')) {
-  console.warn('Using placeholder Supabase credentials. Create a .env file with real values.');
-}
+console.log('Using hardcoded Supabase credentials for testing');
 
-// Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// Helper functions
 export const auth = supabase.auth;
 export const storage = supabase.storage;
