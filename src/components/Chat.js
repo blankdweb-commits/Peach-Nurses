@@ -1,55 +1,110 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+// components/Chat.js
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from '../context/UserContext';
+import { chatService, realtimeService } from '../services/supabaseService';
 import { wingmanService } from '../services/wingmanService';
-import { mockBackend } from '../services/mockBackend';
+import LoadingSpinner from './LoadingSpinner';
 
 const Chat = ({ matchId, onBack }) => {
-  const { chats, sendMessage, userProfile, potentialMatches, subscription } = useUser();
+  const { userProfile, matches, chats, setChats, subscription } = useUser();
   const [inputText, setInputText] = useState('');
   const [wingmanSuggestion, setWingmanSuggestion] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [messages, setMessages] = useState([]);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  const match = potentialMatches.find(u => u.id === matchId);
-  
-  // Fix: Use useMemo to prevent useEffect dependency warning
-  const messages = useMemo(() => {
-    return chats[matchId] || [];
-  }, [chats, matchId]);
+  const match = matches?.find(u => u.id === matchId);
 
-  const scrollToBottom = () => {
+  // Load messages
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!userProfile?.id || !matchId) return;
+      
+      try {
+        setLoading(true);
+        
+        // Get or create chat room
+        const room = await chatService.getOrCreateChatRoom(userProfile.id, matchId);
+        
+        // Load messages
+        const loadedMessages = await chatService.getMessages(room.id);
+        setMessages(loadedMessages);
+        
+        // Mark messages as read
+        await chatService.markMessagesAsRead(room.id, userProfile.id);
+        
+        // Subscribe to new messages
+        const subscription = realtimeService.subscribeToMessages(room.id, (newMessage) => {
+          setMessages(prev => [...prev, newMessage]);
+          if (newMessage.sender_id !== userProfile.id) {
+            // Mark as read immediately if we're in the chat
+            chatService.markMessagesAsRead(room.id, userProfile.id);
+          }
+        });
+        
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadMessages();
+  }, [userProfile?.id, matchId]);
+
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]); // Now messages is stable
+  }, [messages, scrollToBottom]);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  const handleSend = (e) => {
+  const handleSend = async (e) => {
     e.preventDefault();
-    if (inputText.trim()) {
-      sendMessage(matchId, inputText);
+    if (!inputText.trim() || !userProfile?.id || !matchId) return;
+
+    try {
+      const roomId = [userProfile.id, matchId].sort().join('_');
+      
+      // Send message
+      const newMessage = await chatService.sendMessage(
+        roomId,
+        userProfile.id,
+        inputText.trim()
+      );
+      
+      // Update local state
+      setMessages(prev => [...prev, newMessage]);
       setInputText('');
       setWingmanSuggestion(null);
+      
       setTimeout(() => inputRef.current?.focus(), 100);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Failed to send message. Please try again.');
     }
   };
 
   const handleWingman = () => {
-    if (!subscription.isPremium) {
+    if (!subscription?.isPremium) {
       alert("Wingman is a Premium feature! Upgrade to get AI-powered conversation help.");
       return;
     }
 
-    let context = {};
+    const context = {};
     if (messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg.sender === 'them') {
-        context.lastMessage = lastMsg.text;
+      if (lastMsg.sender_id !== userProfile?.id) {
+        context.lastMessage = lastMsg.content;
       }
     }
 
@@ -64,16 +119,17 @@ const Chat = ({ matchId, onBack }) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  if (loading) {
+    return <LoadingSpinner message="Loading conversation..." />;
+  }
+
   if (!match) {
     return (
       <div style={styles.notFoundContainer}>
         <div style={styles.notFoundIcon}>🍑</div>
         <h2>Match not found</h2>
         <p>This chat may have been removed or the user is no longer available.</p>
-        <button
-          onClick={onBack}
-          style={styles.backButton}
-        >
+        <button onClick={onBack} style={styles.backButton}>
           Go Back
         </button>
       </div>
@@ -82,6 +138,7 @@ const Chat = ({ matchId, onBack }) => {
 
   return (
     <div style={styles.container}>
+      {/* Header */}
       <header style={styles.header}>
         <button
           onClick={onBack}
@@ -93,15 +150,15 @@ const Chat = ({ matchId, onBack }) => {
         
         <div style={styles.headerContent}>
           <img
-            src={match.photoUrl}
-            alt={match.realName}
+            src={match.photo_url || match.photoUrl}
+            alt={match.name || match.realName}
             style={styles.avatar}
             onError={(e) => {
               e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="22" fill="%23FF6347"/><text x="22" y="28" font-size="18" text-anchor="middle" fill="white">🍑</text></svg>';
             }}
           />
           <div style={styles.headerInfo}>
-            <div style={styles.name}>{match.realName}</div>
+            <div style={styles.name}>{match.name || match.realName}</div>
             <div style={styles.status}>
               <span style={styles.statusDot}></span>
               Online
@@ -110,15 +167,19 @@ const Chat = ({ matchId, onBack }) => {
         </div>
       </header>
 
+      {/* Messages Area */}
       <div style={styles.messagesArea}>
         {messages.length === 0 && (
           <div style={styles.welcomeMessage}>
             <div style={styles.welcomeIcon}>👋</div>
-            <h3 style={styles.welcomeTitle}>Say hello to {match.realName}!</h3>
+            <h3 style={styles.welcomeTitle}>
+              Say hello to {match.name || match.realName}!
+            </h3>
             <p style={styles.welcomeText}>
-              You matched because you both like <strong>{match.basics.fun[0] || 'similar things'}</strong>.
+              You matched because you both like{' '}
+              <strong>{match.basics?.fun?.[0] || 'similar things'}</strong>.
             </p>
-            {match.basics.fun[1] && (
+            {match.basics?.fun?.[1] && (
               <p style={styles.welcomeSubtext}>
                 You also share interest in {match.basics.fun[1]}!
               </p>
@@ -126,34 +187,39 @@ const Chat = ({ matchId, onBack }) => {
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            style={{
-              ...styles.messageContainer,
-              alignItems: msg.sender === 'me' ? 'flex-end' : 'flex-start'
-            }}
-          >
-            <div style={{
-              ...styles.messageBubble,
-              backgroundColor: msg.sender === 'me' ? '#FF6347' : '#fff',
-              color: msg.sender === 'me' ? 'white' : '#333',
-              border: msg.sender === 'me' ? 'none' : '1px solid #e0e0e0'
-            }}>
-              {msg.text}
+        {messages.map((msg) => {
+          const isMe = msg.sender_id === userProfile?.id;
+          
+          return (
+            <div
+              key={msg.id}
+              style={{
+                ...styles.messageContainer,
+                alignItems: isMe ? 'flex-end' : 'flex-start'
+              }}
+            >
               <div style={{
-                ...styles.messageTime,
-                color: msg.sender === 'me' ? 'rgba(255,255,255,0.7)' : '#888',
-                textAlign: msg.sender === 'me' ? 'end' : 'start'
+                ...styles.messageBubble,
+                backgroundColor: isMe ? '#FF6347' : '#fff',
+                color: isMe ? 'white' : '#333',
+                border: isMe ? 'none' : '1px solid #e0e0e0'
               }}>
-                {formatTime(msg.timestamp)}
+                {msg.content}
+                <div style={{
+                  ...styles.messageTime,
+                  color: isMe ? 'rgba(255,255,255,0.7)' : '#888',
+                  textAlign: isMe ? 'end' : 'start'
+                }}>
+                  {formatTime(msg.created_at)}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Wingman Suggestion */}
       {wingmanSuggestion && (
         <div style={styles.suggestionBanner}>
           <div style={styles.suggestionIcon}>🦜</div>
@@ -171,6 +237,7 @@ const Chat = ({ matchId, onBack }) => {
         </div>
       )}
 
+      {/* Input Area */}
       <div style={styles.inputArea}>
         <form onSubmit={handleSend} style={styles.inputForm}>
           <button
@@ -179,8 +246,8 @@ const Chat = ({ matchId, onBack }) => {
             title="Get Wingman suggestion"
             style={{
               ...styles.wingmanButton,
-              background: subscription.isPremium ? '#0288D1' : '#e0e0e0',
-              cursor: subscription.isPremium ? 'pointer' : 'not-allowed'
+              background: subscription?.isPremium ? '#0288D1' : '#e0e0e0',
+              cursor: subscription?.isPremium ? 'pointer' : 'not-allowed'
             }}
           >
             🦜
@@ -208,6 +275,20 @@ const Chat = ({ matchId, onBack }) => {
           </button>
         </form>
       </div>
+
+      <style jsx="true">{`
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+        }
+        
+        @media (max-width: 480px) {
+          .avatar { width: 36px !important; height: 36px !important; }
+          .message-bubble { max-width: 85% !important; }
+          .back-arrow { font-size: 1.5rem !important; }
+        }
+      `}</style>
     </div>
   );
 };

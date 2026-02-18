@@ -1,37 +1,82 @@
+// components/ChatList.js
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUser } from '../context/UserContext';
+import { chatService, realtimeService } from '../services/supabaseService';
+import LoadingSpinner from './LoadingSpinner';
 
 const ChatList = ({ onSelectChat }) => {
-  const { rippedMatches, potentialMatches, chats } = useUser();
+  const { userProfile, matches, setMatches, chats, setChats } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [chatRooms, setChatRooms] = useState([]);
   const [touchTimeout, setTouchTimeout] = useState(null);
 
-  // Filter potential matches to find only those who are ripped - useMemo to prevent recalculations
-  const matches = useMemo(() => 
-    potentialMatches.filter(user => rippedMatches.includes(user.id)), 
-    [potentialMatches, rippedMatches]
-  );
+  // Load chat rooms and messages
+  useEffect(() => {
+    const loadChats = async () => {
+      if (!userProfile?.id) return;
+      
+      try {
+        setLoading(true);
+        
+        // Get user's chat rooms
+        const rooms = await chatService.getUserChatRooms(userProfile.id);
+        setChatRooms(rooms);
+        
+        // Load messages for each room
+        const allMessages = {};
+        for (const room of rooms) {
+          const messages = await chatService.getMessages(room.id);
+          allMessages[room.id] = messages;
+        }
+        
+        setChats(allMessages);
+        
+        // Subscribe to new messages
+        const subscriptions = rooms.map(room => 
+          realtimeService.subscribeToMessages(room.id, (newMessage) => {
+            setChats(prev => ({
+              ...prev,
+              [room.id]: [...(prev[room.id] || []), newMessage]
+            }));
+          })
+        );
+        
+        return () => {
+          subscriptions.forEach(sub => sub.unsubscribe());
+        };
+      } catch (error) {
+        console.error('Error loading chats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadChats();
+  }, [userProfile?.id, setChats]);
 
-  // Filter matches based on search query - useMemo to prevent recalculations
+  // Filter matches based on search query
   const filteredMatches = useMemo(() => {
+    if (!matches) return [];
+    
     if (searchQuery.trim() === '') {
       return matches;
     } else {
       const query = searchQuery.toLowerCase();
       return matches.filter(match =>
-        match.realName?.toLowerCase().includes(query) ||
+        match.name?.toLowerCase().includes(query) ||
         match.alias?.toLowerCase().includes(query) ||
         (chats[match.id]?.some(msg => 
-          msg.text?.toLowerCase().includes(query)
+          msg.content?.toLowerCase().includes(query)
         ))
       );
     }
   }, [searchQuery, matches, chats]);
 
-  const getLastMessageTime = useCallback((matchId) => {
+  const getLastMessage = useCallback((matchId) => {
     const matchChats = chats[matchId];
     if (!matchChats || matchChats.length === 0) return null;
-    return matchChats[matchChats.length - 1].timestamp;
+    return matchChats[matchChats.length - 1];
   }, [chats]);
 
   const formatLastSeen = useCallback((timestamp) => {
@@ -53,9 +98,11 @@ const ChatList = ({ onSelectChat }) => {
 
   const getUnreadCount = useCallback((matchId) => {
     const matchChats = chats[matchId];
-    if (!matchChats) return 0;
-    return matchChats.filter(msg => msg.sender === 'them' && !msg.read).length;
-  }, [chats]);
+    if (!matchChats || !userProfile?.id) return 0;
+    return matchChats.filter(msg => 
+      msg.sender_id !== userProfile.id && !msg.read
+    ).length;
+  }, [chats, userProfile?.id]);
 
   const handleTouchStart = useCallback((e) => {
     const target = e.currentTarget;
@@ -88,48 +135,33 @@ const ChatList = ({ onSelectChat }) => {
     };
   }, [touchTimeout]);
 
-  if (matches.length === 0) {
+  const handleSelectChat = async (matchId) => {
+    try {
+      // Mark messages as read when opening chat
+      const roomId = [userProfile.id, matchId].sort().join('_');
+      await chatService.markMessagesAsRead(roomId, userProfile.id);
+      onSelectChat(matchId);
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+      onSelectChat(matchId);
+    }
+  };
+
+  if (loading) {
+    return <LoadingSpinner message="Loading your chats..." />;
+  }
+
+  if (!matches || matches.length === 0) {
     return (
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '40px 20px',
-        textAlign: 'center',
-        minBlockSize: '60dvh'
-      }}>
-        <div style={{
-          inlineSize: '100px',
-          blockSize: '100px',
-          borderRadius: '50%',
-          backgroundColor: '#FFF0E6',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '3rem',
-          marginBlockEnd: '20px'
-        }}>
-          🍑
-        </div>
-        <h3 style={{ color: '#FF6347', marginBlockEnd: '12px' }}>
-          No Chats Yet
-        </h3>
-        <p style={{ color: '#666', marginBlockEnd: '24px', maxInlineSize: '300px' }}>
+      <div style={styles.emptyContainer}>
+        <div style={styles.emptyIcon}>🍑</div>
+        <h3 style={styles.emptyTitle}>No Chats Yet</h3>
+        <p style={styles.emptyText}>
           Go to Discover and ripen some matches to start chatting!
         </p>
         <button
           onClick={() => window.location.href = '/discover'}
-          style={{
-            padding: '12px 24px',
-            background: '#FF6347',
-            color: 'white',
-            border: 'none',
-            borderRadius: '25px',
-            cursor: 'pointer',
-            fontSize: '1rem',
-            fontWeight: '600'
-          }}
+          style={styles.discoverButton}
         >
           Go to Discover
         </button>
@@ -138,89 +170,30 @@ const ChatList = ({ onSelectChat }) => {
   }
 
   return (
-    <div style={{
-      maxInlineSize: '600px',
-      margin: '0 auto',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      blockSize: '100dvh',
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: '#fff'
-    }}>
+    <div style={styles.container}>
       {/* Header */}
-      <header style={{
-        padding: '16px',
-        borderBlockEnd: '1px solid #eee',
-        backgroundColor: '#fff',
-        position: 'sticky',
-        insetBlockStart: 0,
-        zIndex: 10
-      }}>
-        <h1 style={{
-          fontSize: '1.5rem',
-          fontWeight: '700',
-          color: '#FF6347',
-          marginBlockEnd: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
+      <header style={styles.header}>
+        <h1 style={styles.headerTitle}>
           <span>Your Peaches</span>
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            inlineSize: '24px',
-            blockSize: '24px',
-            borderRadius: '50%',
-            backgroundColor: '#FF6347',
-            color: 'white',
-            fontSize: '0.8rem'
-          }}>
+          <span style={styles.matchCount}>
             {matches.length}
           </span>
         </h1>
         
         {/* Search Bar */}
-        <div style={{ position: 'relative' }}>
+        <div style={styles.searchContainer}>
           <input
             type="text"
             placeholder="Search chats..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{
-              inlineSize: '100%',
-              padding: '12px 16px 12px 44px',
-              borderRadius: '24px',
-              border: '1px solid #ddd',
-              fontSize: '1rem',
-              backgroundColor: '#f9f9f9',
-              outline: 'none'
-            }}
+            style={styles.searchInput}
           />
-          <div style={{
-            position: 'absolute',
-            insetBlockStart: '50%',
-            insetInlineStart: '16px',
-            transform: 'translateY(-50%)',
-            color: '#999'
-          }}>
-            🔍
-          </div>
+          <span style={styles.searchIcon}>🔍</span>
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              style={{
-                position: 'absolute',
-                insetBlockStart: '50%',
-                insetInlineEnd: '16px',
-                transform: 'translateY(-50%)',
-                background: 'none',
-                border: 'none',
-                fontSize: '1.2rem',
-                cursor: 'pointer',
-                color: '#999'
-              }}
+              style={styles.clearSearch}
               aria-label="Clear search"
             >
               ×
@@ -230,173 +203,80 @@ const ChatList = ({ onSelectChat }) => {
       </header>
 
       {/* Chat List */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '8px'
-      }}>
+      <div style={styles.chatList}>
         {searchQuery && filteredMatches.length === 0 ? (
-          <div style={{
-            padding: '40px 20px',
-            textAlign: 'center',
-            color: '#666'
-          }}>
-            <div style={{ fontSize: '2rem', marginBlockEnd: '16px' }}>🔍</div>
+          <div style={styles.noResults}>
+            <div style={styles.noResultsIcon}>🔍</div>
             <p>No chats found matching "{searchQuery}"</p>
           </div>
         ) : (
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          <ul style={styles.chatListUl}>
             {(searchQuery ? filteredMatches : matches).map(match => {
-              const lastMessage = chats[match.id] && chats[match.id].length > 0
-                ? chats[match.id][chats[match.id].length - 1].text
-                : "Say hello! 👋";
-              
-              const lastMessageTime = getLastMessageTime(match.id);
+              const lastMessage = getLastMessage(match.id);
+              const lastMessageContent = lastMessage?.content || "Say hello! 👋";
+              const lastMessageTime = lastMessage?.created_at;
               const unreadCount = getUnreadCount(match.id);
-              const isOnline = match.isOnline || false;
 
               return (
                 <li
                   key={match.id}
-                  onClick={() => onSelectChat(match.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '12px',
-                    borderBlockEnd: '1px solid #f0f0f0',
-                    cursor: 'pointer',
-                    transition: 'background 0.2s',
-                    position: 'relative',
-                    gap: '12px',
-                    backgroundColor: 'transparent'
-                  }}
+                  onClick={() => handleSelectChat(match.id)}
+                  style={styles.chatItem}
                   onMouseEnter={(e) => {
-                    if (e.currentTarget) {
-                      e.currentTarget.style.background = '#f9f9f9';
-                    }
+                    e.currentTarget.style.background = '#f9f9f9';
                   }}
                   onMouseLeave={(e) => {
-                    if (e.currentTarget) {
-                      e.currentTarget.style.background = 'transparent';
-                    }
+                    e.currentTarget.style.background = 'transparent';
                   }}
                   onTouchStart={handleTouchStart}
                   onTouchEnd={handleTouchEnd}
                 >
-                  {/* Avatar with Online Indicator */}
-                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                  {/* Avatar */}
+                  <div style={styles.avatarContainer}>
                     <img
-                      src={match.photoUrl}
+                      src={match.photo_url || match.photoUrl}
                       alt={match.alias || 'User'}
-                      style={{
-                        inlineSize: '56px',
-                        blockSize: '56px',
-                        borderRadius: '50%',
-                        objectFit: 'cover',
-                        border: '2px solid #fff',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                      }}
+                      style={styles.avatar}
                       onError={(e) => {
                         e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="28" fill="%23FF6347"/><text x="28" y="35" font-size="24" text-anchor="middle" fill="white">🍑</text></svg>';
                       }}
                     />
-                    {isOnline && (
-                      <div style={{
-                        position: 'absolute',
-                        insetBlockEnd: '0',
-                        insetInlineEnd: '0',
-                        inlineSize: '14px',
-                        blockSize: '14px',
-                        borderRadius: '50%',
-                        backgroundColor: '#4CAF50',
-                        border: '2px solid #fff',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                      }} />
-                    )}
                   </div>
 
                   {/* Chat Info */}
-                  <div style={{ flex: 1, minInlineSize: 0 }}>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      marginBlockEnd: '4px'
-                    }}>
-                      <span style={{
-                        fontWeight: '600',
-                        fontSize: '1rem',
-                        color: '#333',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}>
-                        {match.realName || 'Anonymous'}
+                  <div style={styles.chatInfo}>
+                    <div style={styles.chatHeader}>
+                      <span style={styles.chatName}>
+                        {match.name || match.realName || 'Anonymous'}
                       </span>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        flexShrink: 0
-                      }}>
-                        {match.level && (
-                          <span style={{
-                            fontSize: '0.75rem',
-                            color: '#666',
-                            backgroundColor: '#f0f0f0',
-                            padding: '2px 8px',
-                            borderRadius: '12px'
-                          }}>
-                            {match.level}
+                      <div style={styles.chatMeta}>
+                        {match.life?.level && (
+                          <span style={styles.levelBadge}>
+                            {match.life.level}
                           </span>
                         )}
-                        <span style={{
-                          fontSize: '0.75rem',
-                          color: '#999'
-                        }}>
+                        <span style={styles.chatTime}>
                           {formatLastSeen(lastMessageTime)}
                         </span>
                       </div>
                     </div>
                     
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      marginBlockEnd: '4px'
-                    }}>
-                      <div style={{
-                        fontSize: '0.9rem',
-                        color: unreadCount > 0 ? '#333' : '#666',
-                        fontWeight: unreadCount > 0 ? '500' : '400',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        flex: 1
+                    <div style={styles.messagePreview}>
+                      <span style={{
+                        ...styles.messageText,
+                        fontWeight: unreadCount > 0 ? 500 : 400,
+                        color: unreadCount > 0 ? '#333' : '#666'
                       }}>
-                        {lastMessage}
-                      </div>
+                        {lastMessageContent}
+                      </span>
                     </div>
                     
                     {/* Common Interests */}
                     {match.basics?.fun?.[0] && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        marginBlockStart: '4px'
-                      }}>
-                        <span style={{
-                          fontSize: '0.75rem',
-                          color: '#FF6347',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
-                        }}>
-                          ❤️
-                          <span style={{ color: '#999' }}>
-                            Likes {match.basics.fun[0]}
-                          </span>
+                      <div style={styles.interests}>
+                        <span style={styles.interestIcon}>❤️</span>
+                        <span style={styles.interestText}>
+                          Likes {match.basics.fun[0]}
                         </span>
                       </div>
                     )}
@@ -404,19 +284,7 @@ const ChatList = ({ onSelectChat }) => {
 
                   {/* Unread Badge */}
                   {unreadCount > 0 && (
-                    <div style={{
-                      inlineSize: '20px',
-                      blockSize: '20px',
-                      borderRadius: '50%',
-                      backgroundColor: '#FF6347',
-                      color: 'white',
-                      fontSize: '0.7rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: '600',
-                      flexShrink: 0
-                    }}>
+                    <div style={styles.unreadBadge}>
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </div>
                   )}
@@ -427,58 +295,253 @@ const ChatList = ({ onSelectChat }) => {
         )}
       </div>
 
-      {/* CSS for Responsive Design */}
       <style jsx="true">{`
-        @media (max-width: 480px) {
-          .chat-list-container {
-            max-inline-size: 100% !important;
-          }
-          
-          header {
-            padding: 12px !important;
-          }
-          
-          h1 {
-            font-size: 1.3rem !important;
-          }
-          
-          .chat-item {
-            padding: 10px !important;
-          }
-          
-          .avatar {
-            inline-size: 48px !important;
-            block-size: 48px !important;
-          }
-          
-          .last-message {
-            font-size: 0.85rem !important;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .chat-list-container {
-            max-inline-size: 100% !important;
-          }
-        }
-
-        /* Improve touch targets */
-        li {
-          min-block-size: 72px !important;
+        @keyframes pulse {
+          0% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.05); }
+          100% { opacity: 1; transform: scale(1); }
         }
         
-        /* Better scroll on mobile */
+        @media (max-width: 480px) {
+          h1 { font-size: 1.3rem !important; }
+          .avatar { width: 48px !important; height: 48px !important; }
+          .message-text { font-size: 0.85rem !important; }
+          li { min-height: 72px !important; }
+        }
+        
         .chat-list {
           -webkit-overflow-scrolling: touch;
         }
-
-        /* Remove tap highlight */
+        
         button, li {
           -webkit-tap-highlight-color: transparent;
         }
       `}</style>
     </div>
   );
+};
+
+const styles = {
+  container: {
+    maxWidth: '600px',
+    margin: '0 auto',
+    height: '100dvh',
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: '#fff',
+    fontFamily: 'system-ui, -apple-system, sans-serif'
+  },
+  emptyContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '40px 20px',
+    textAlign: 'center',
+    minHeight: '60dvh'
+  },
+  emptyIcon: {
+    width: '100px',
+    height: '100px',
+    borderRadius: '50%',
+    backgroundColor: '#FFF0E6',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '3rem',
+    marginBottom: '20px'
+  },
+  emptyTitle: {
+    color: '#FF6347',
+    marginBottom: '12px'
+  },
+  emptyText: {
+    color: '#666',
+    marginBottom: '24px',
+    maxWidth: '300px'
+  },
+  discoverButton: {
+    padding: '12px 24px',
+    background: '#FF6347',
+    color: 'white',
+    border: 'none',
+    borderRadius: '25px',
+    cursor: 'pointer',
+    fontSize: '1rem',
+    fontWeight: '600'
+  },
+  header: {
+    padding: '16px',
+    borderBottom: '1px solid #eee',
+    backgroundColor: '#fff',
+    position: 'sticky',
+    top: 0,
+    zIndex: 10
+  },
+  headerTitle: {
+    fontSize: '1.5rem',
+    fontWeight: '700',
+    color: '#FF6347',
+    marginBottom: '16px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  },
+  matchCount: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    backgroundColor: '#FF6347',
+    color: 'white',
+    fontSize: '0.8rem'
+  },
+  searchContainer: {
+    position: 'relative'
+  },
+  searchInput: {
+    width: '100%',
+    padding: '12px 16px 12px 44px',
+    borderRadius: '24px',
+    border: '1px solid #ddd',
+    fontSize: '1rem',
+    backgroundColor: '#f9f9f9',
+    outline: 'none',
+    boxSizing: 'border-box'
+  },
+  searchIcon: {
+    position: 'absolute',
+    top: '50%',
+    left: '16px',
+    transform: 'translateY(-50%)',
+    color: '#999'
+  },
+  clearSearch: {
+    position: 'absolute',
+    top: '50%',
+    right: '16px',
+    transform: 'translateY(-50%)',
+    background: 'none',
+    border: 'none',
+    fontSize: '1.2rem',
+    cursor: 'pointer',
+    color: '#999'
+  },
+  chatList: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '8px'
+  },
+  chatListUl: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0
+  },
+  chatItem: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '12px',
+    borderBottom: '1px solid #f0f0f0',
+    cursor: 'pointer',
+    transition: 'background 0.2s',
+    gap: '12px',
+    minHeight: '72px'
+  },
+  avatarContainer: {
+    position: 'relative',
+    flexShrink: 0
+  },
+  avatar: {
+    width: '56px',
+    height: '56px',
+    borderRadius: '50%',
+    objectFit: 'cover',
+    border: '2px solid #fff',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+  },
+  chatInfo: {
+    flex: 1,
+    minWidth: 0
+  },
+  chatHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '4px'
+  },
+  chatName: {
+    fontWeight: '600',
+    fontSize: '1rem',
+    color: '#333',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis'
+  },
+  chatMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    flexShrink: 0
+  },
+  levelBadge: {
+    fontSize: '0.75rem',
+    color: '#666',
+    backgroundColor: '#f0f0f0',
+    padding: '2px 8px',
+    borderRadius: '12px'
+  },
+  chatTime: {
+    fontSize: '0.75rem',
+    color: '#999'
+  },
+  messagePreview: {
+    marginBottom: '4px'
+  },
+  messageText: {
+    fontSize: '0.9rem',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    display: 'block'
+  },
+  interests: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    marginTop: '4px'
+  },
+  interestIcon: {
+    fontSize: '0.75rem',
+    color: '#FF6347'
+  },
+  interestText: {
+    fontSize: '0.75rem',
+    color: '#999'
+  },
+  unreadBadge: {
+    width: '20px',
+    height: '20px',
+    borderRadius: '50%',
+    backgroundColor: '#FF6347',
+    color: 'white',
+    fontSize: '0.7rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: '600',
+    flexShrink: 0
+  },
+  noResults: {
+    padding: '40px 20px',
+    textAlign: 'center',
+    color: '#666'
+  },
+  noResultsIcon: {
+    fontSize: '2rem',
+    marginBottom: '16px'
+  }
 };
 
 export default ChatList;

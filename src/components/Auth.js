@@ -40,22 +40,25 @@ export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
-    setError(null);
-    
-    try {
-      const { error } = await signInWithGoogle();
-      if (error) throw error;
-      // No need to call onLoginSuccess - the auth state change will handle it
-    } catch (err) {
-      console.error('Google sign-in error:', err);
-      const errorInfo = getErrorMessage(err, 'google-login');
-      setError(errorInfo);
-      showErrorToast(errorInfo.userMessage);
-      setGoogleLoading(false);
-    }
-  };
+  // In Auth.js, update handleGoogleSignIn functions:
+
+const handleGoogleSignIn = async () => {
+  setGoogleLoading(true);
+  setError(null);
+  
+  try {
+    const { error } = await signInWithGoogle();
+    if (error) throw error;
+    // The page will redirect to Google for authentication
+    // No need to call onLoginSuccess - the auth state change will handle it after redirect
+  } catch (err) {
+    console.error('Google sign-in error:', err);
+    const errorInfo = getErrorMessage(err, 'google-login');
+    setError(errorInfo);
+    showErrorToast(errorInfo.userMessage);
+    setGoogleLoading(false);
+  }
+};
 
   if (loading || googleLoading) {
     return <LoadingSpinner message={googleLoading ? "Connecting to Google..." : "Signing in..."} />;
@@ -137,12 +140,7 @@ export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
             </button>
           </form>
 
-          <div style={styles.demoCredentials}>
-            <p style={styles.demoText}>Demo credentials:</p>
-            <p style={styles.demoCredentialsText}>test@peach.com / password</p>
-          </div>
-
-          <div style={styles.footer}>
+                <div style={styles.footer}>
             <p style={styles.footerText}>
               New to Peach?{' '}
               <button 

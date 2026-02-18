@@ -1,10 +1,11 @@
+// components/Discover.js
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useUser } from '../context/UserContext';
 import AdBanner from './AdBanner';
 
 const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }) => {
-  const { userProfile, incrementAdsSeen, subscription, updateUserProfile } = useUser();
+  const { userProfile, subscription, ripenMatch, isRipped, incrementAdsSeen } = useUser();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [notification, setNotification] = useState(null);
   const [actionsSinceAd, setActionsSinceAd] = useState(0);
@@ -154,14 +155,6 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     }
   ];
 
-  // Use actual userProfile from context
-  const currentUser = userProfile;
-
-  // Debug: Log current user profile
-  useEffect(() => {
-    console.log('Current User Profile:', currentUser);
-  }, [currentUser]);
-
   // Fetch user's current location
   useEffect(() => {
     const fetchLocation = async () => {
@@ -224,7 +217,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
       
       // Filter out current user
       const filteredMatches = MOCK_USERS.filter(user => 
-        currentUser && user.id !== currentUser.id
+        userProfile && user.id !== userProfile.id
       );
       
       // Calculate distances and enrich matches
@@ -248,8 +241,8 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
 
       // Sort by compatibility score
       const sortedMatches = enrichedMatches.sort((a, b) => {
-        const scoreA = calculateCompatibility(currentUser, a);
-        const scoreB = calculateCompatibility(currentUser, b);
+        const scoreA = calculateCompatibility(userProfile, a);
+        const scoreB = calculateCompatibility(userProfile, b);
         return scoreB - scoreA;
       });
 
@@ -261,25 +254,25 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     } finally {
       setLoading(false);
     }
-  }, [currentUser, userLocation, calculateCompatibility]);
+  }, [userProfile, userLocation, calculateCompatibility]);
 
   // Load matches when component mounts and user profile is available
   useEffect(() => {
-    if (currentUser) {
+    if (userProfile) {
       fetchPotentialMatches();
     }
-  }, [currentUser, fetchPotentialMatches]);
+  }, [userProfile, fetchPotentialMatches]);
 
   // Show instructions after loading
   useEffect(() => {
     const hasSeenInstructions = localStorage.getItem('hasSeenDiscoverInstructions');
-    if (!hasSeenInstructions && !loading && potentialMatches.length > 0 && currentUser) {
+    if (!hasSeenInstructions && !loading && potentialMatches.length > 0 && userProfile) {
       setTimeout(() => {
         setShowInstructions(true);
         localStorage.setItem('hasSeenDiscoverInstructions', 'true');
       }, 1000);
     }
-  }, [loading, potentialMatches.length, currentUser]);
+  }, [loading, potentialMatches.length, userProfile]);
 
   // Filter deck
   const deck = useMemo(() => {
@@ -287,7 +280,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
   }, [potentialMatches]);
 
   const currentMatch = deck[currentIndex];
-  const matchScore = currentMatch && currentUser ? calculateCompatibility(currentUser, currentMatch) : 0;
+  const matchScore = currentMatch && userProfile ? calculateCompatibility(userProfile, currentMatch) : 0;
 
   // Swipe handlers
   const handlers = useSwipeable({
@@ -312,37 +305,42 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
 
   const handleRipenMatch = async (targetUserId) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const ripenedUsers = JSON.parse(localStorage.getItem('ripenedUsers') || '[]');
-      if (ripenedUsers.includes(targetUserId)) {
-        return false;
+      // Use the context ripenMatch function if available
+      if (ripenMatch) {
+        const success = await ripenMatch(targetUserId);
+        if (!success) {
+          alert("Daily Limit Reached! Upgrade to Premium to continue ripening.");
+          if (onNavigateToStore) onNavigateToStore();
+          return false;
+        }
+      } else {
+        // Fallback to localStorage if context function not available
+        const ripenedUsers = JSON.parse(localStorage.getItem('ripenedUsers') || '[]');
+        if (ripenedUsers.includes(targetUserId)) {
+          return false;
+        }
+
+        const dailyLimit = subscription?.isPremium ? 999 : 25;
+        if (ripenedUsers.length >= dailyLimit) {
+          return false;
+        }
+
+        ripenedUsers.push(targetUserId);
+        localStorage.setItem('ripenedUsers', JSON.stringify(ripenedUsers));
+        setRipenCount(prev => prev + 1);
       }
-
-      const today = new Date().toISOString().split('T')[0];
-      const dailyRipens = JSON.parse(localStorage.getItem('dailyRipens') || '[]');
-      const todayRipens = dailyRipens.filter(date => date === today);
       
-      const dailyLimit = subscription?.isPremium ? 999 : 25;
-      if (todayRipens.length >= dailyLimit) {
-        return false;
-      }
-
-      ripenedUsers.push(targetUserId);
-      localStorage.setItem('ripenedUsers', JSON.stringify(ripenedUsers));
-      
-      dailyRipens.push(today);
-      localStorage.setItem('dailyRipens', JSON.stringify(dailyRipens));
-
-      setRipenCount(prev => prev + 1);
-      
+      // Check for mutual match (mock)
       const mutualMatch = Math.random() > 0.7;
       
       if (mutualMatch && currentMatch) {
+        // Add to matches in localStorage or context
         const matches = JSON.parse(localStorage.getItem('matches') || '[]');
         matches.push({
           userId: targetUserId,
           alias: currentMatch.alias,
+          name: currentMatch.realName,
+          photoUrl: currentMatch.photoUrl,
           matchedAt: new Date().toISOString()
         });
         localStorage.setItem('matches', JSON.stringify(matches));
@@ -353,7 +351,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
 
       return true;
     } catch (err) {
-      console.error('Error ripen match:', err);
+      console.error('Error ripening match:', err);
       return false;
     }
   };
@@ -361,7 +359,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
   const handleSwipeComplete = async (direction) => {
     const newCount = actionsSinceAd + 1;
     setActionsSinceAd(newCount);
-    const shouldShowAds = !subscription?.isPremium || (subscription?.isPremium && currentUser?.preferences?.allowAds);
+    const shouldShowAds = !subscription?.isPremium || (userProfile?.preferences?.allowAds);
     
     if (shouldShowAds && newCount >= 5) {
       setTimeout(() => setShowAd(true), 500);
@@ -371,8 +369,6 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     if (direction === 'right' && currentMatch) {
       const success = await handleRipenMatch(currentMatch.id);
       if (!success) {
-        alert("Daily Limit Reached! Upgrade to Premium to continue ripening.");
-        if (onNavigateToStore) onNavigateToStore();
         return;
       }
     }
@@ -467,26 +463,6 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
           >
             Adjust Settings
           </button>
-        </div>
-        
-        {/* Bottom Navigation */}
-        <div style={styles.bottomNav}>
-          <div style={{...styles.navItem, ...styles.navItemActive}}>
-            <div style={styles.navIcon}>🍑</div>
-            <div style={styles.navLabel}>Discover</div>
-          </div>
-          <div style={styles.navItem} onClick={onNavigateToChats}>
-            <div style={styles.navIcon}>💬</div>
-            <div style={styles.navLabel}>Chats</div>
-          </div>
-          <div style={styles.navItem} onClick={onNavigateToStore}>
-            <div style={styles.navIcon}>🛒</div>
-            <div style={styles.navLabel}>Store</div>
-          </div>
-          <div style={styles.navItem} onClick={onNavigateToSettings}>
-            <div style={styles.navIcon}>⚙️</div>
-            <div style={styles.navLabel}>Settings</div>
-          </div>
         </div>
       </div>
     );
@@ -588,31 +564,9 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div style={styles.actions}>
-        <button 
-          onClick={() => handleManualSwipe('left')}
-          style={styles.nopeButton}
-          onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-          onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-        >
-          ✖
-        </button>
-        <button 
-          onClick={() => handleManualSwipe('right')}
-          style={styles.ripenButton}
-          onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-          onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-        >
-          🍑
-        </button>
-      </div>
-
-      {/* Bottom Navigation */}
+          {/* Bottom Navigation */}
       <div style={styles.bottomNav}>
-        <div style={{...styles.navItem, ...styles.navItemActive}}>
+        <div style={{...styles.navItem, ...styles.navItemActive}} onClick={() => {}}>
           <div style={styles.navIcon}>🍑</div>
           <div style={styles.navLabel}>Discover</div>
         </div>
@@ -633,6 +587,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
   );
 };
 
+// Styles object remains the same as in your original file
 const styles = {
   container: {
     height: '100vh',
@@ -640,7 +595,7 @@ const styles = {
     flexDirection: 'column',
     backgroundColor: '#f8f9fa',
     position: 'relative',
-    paddingBottom: '80px' // Space for bottom nav
+    paddingBottom: '80px'
   },
   swipeArea: {
     flex: 1,

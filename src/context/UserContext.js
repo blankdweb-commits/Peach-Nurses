@@ -129,7 +129,7 @@ export const UserProvider = ({ children }) => {
           const otherUserId = room.participants.find(id => id !== userId);
           const { data: otherUser } = await supabase
             .from('profiles')
-            .select('alias, photo_url')
+            .select('alias, photo_url, name')
             .eq('id', otherUserId)
             .single();
           
@@ -137,6 +137,7 @@ export const UserProvider = ({ children }) => {
             id: room.id,
             userId: otherUserId,
             alias: otherUser?.alias || 'Anonymous',
+            name: otherUser?.name || 'Anonymous',
             photoUrl: otherUser?.photo_url,
             lastMessage: room.last_message,
             lastMessageTime: room.last_message_at
@@ -244,6 +245,30 @@ export const UserProvider = ({ children }) => {
       console.error('Signup error:', error);
       setError(error.message);
       return false;
+    }
+  };
+
+  // Google Sign-In function
+  const signInWithGoogle = async () => {
+    try {
+      setError(null);
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
+      });
+
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      setError(error.message);
+      return { data: null, error };
     }
   };
 
@@ -482,6 +507,7 @@ export const UserProvider = ({ children }) => {
   // Delete user
   const deleteUser = async (userId) => {
     try {
+      // Note: This requires admin privileges
       await supabase.auth.admin.deleteUser(userId);
     } catch (error) {
       console.error('Error deleting user:', error);
@@ -492,33 +518,41 @@ export const UserProvider = ({ children }) => {
   const incrementAdsSeen = () => {
     setAdsSeen(prev => prev + 1);
   };
+// Add this near other useState declarations
+const [chats, setChats] = useState({});
+  // context/UserContext.js - Add these to the context value
+// Find the value object at the bottom of UserContext.js and add:
 
-  const value = {
-    currentUser,
-    userProfile,
-    onboardingComplete,
-    subscription,
-    adsSeen,
-    ripenedUsers,
-    matches,
-    potentialMatches,
-    loading,
-    error,
-    loginUser,
-    signupUser,
-    logoutUser,
-    updateUserProfile,
-    completeOnboarding,
-    ripenMatch,
-    isRipped,
-    sendMessage,
-    grantPremium,
-    revokePremium,
-    banUser,
-    deleteUser,
-    incrementAdsSeen,
-    setError
-  };
+const value = {
+  currentUser,
+  userProfile,
+  onboardingComplete,
+  subscription,
+  adsSeen,
+  ripenedUsers,
+  matches,
+  setMatches, // Add this
+  chats,      // Add this if not already there
+  setChats,   // Add this
+  potentialMatches,
+  loading,
+  error,
+  loginUser,
+  signupUser,
+  signInWithGoogle,
+  logoutUser,
+  updateUserProfile,
+  completeOnboarding,
+  ripenMatch,
+  isRipped,
+  sendMessage,
+  grantPremium,
+  revokePremium,
+  banUser,
+  deleteUser,
+  incrementAdsSeen,
+  setError
+};
 
   return (
     <UserContext.Provider value={value}>

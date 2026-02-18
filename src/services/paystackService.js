@@ -1,126 +1,100 @@
 // src/services/paystackService.js
-
-// IMPORTANT: Replace these with your actual Paystack keys from https://dashboard.paystack.com
-// For production, use environment variables
 export const PAYSTACK_CONFIG = {
-  // For testing, use test keys. For production, use live keys
-  publicKey: process.env.REACT_APP_PAYSTACK_PUBLIC_KEY || 'pk_test_your_public_key_here', // Replace with your actual test key
+  publicKey: process.env.REACT_APP_PAYSTACK_PUBLIC_KEY,
   currency: 'NGN',
   plans: {
-    premium: {
-      amount: 2500, // ₦2,500
-      planCode: process.env.REACT_APP_PAYSTACK_PLAN_CODE || '', // Leave empty for one-time payments
-      name: 'Peach Premium'
+    monthly: {
+      amount: 2500,
+      name: 'Monthly Premium',
+      durationDays: 30
     },
     yearly: {
-      amount: 24000, // ₦24,000 (save 20%)
-      planCode: process.env.REACT_APP_PAYSTACK_YEARLY_CODE || '',
-      name: 'Peach Premium Yearly'
+      amount: 24000,
+      name: 'Yearly Premium',
+      durationDays: 365,
+      savings: 'Save 20%'
     }
   }
 };
 
-// Initialize transaction with your backend
-export const initializeTransaction = async (email, amount, metadata = {}) => {
-  try {
-    // In a real app, this would call YOUR backend, which then calls Paystack
-    // This prevents exposing your secret key
-    const response = await fetch('/api/initialize-payment', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, amount, metadata })
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Payment initialization failed');
+export const loadPaystackScript = () => {
+  return new Promise((resolve, reject) => {
+    // If already loaded
+    if (window.PaystackPop) {
+      resolve();
+      return;
     }
-    
-    return data;
+
+    // Check if script is already in document
+    const existingScript = document.querySelector('script[src="https://js.paystack.co/v1/inline.js"]');
+    if (existingScript) {
+      existingScript.addEventListener('load', resolve);
+      existingScript.addEventListener('error', reject);
+      return;
+    }
+
+    // Create new script
+    const script = document.createElement('script');
+    script.src = 'https://js.paystack.co/v1/inline.js';
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+};
+
+export const initializePaystackPayment = async (email, amount, metadata, callbacks) => {
+  try {
+    // Ensure Paystack is loaded
+    await loadPaystackScript();
+
+    if (!window.PaystackPop) {
+      throw new Error('Paystack failed to load. Please refresh the page.');
+    }
+
+    if (amount < 100) {
+      throw new Error('Minimum amount is ₦100');
+    }
+
+    const amountInKobo = amount * 100;
+    const reference = `PEACH_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    const handler = window.PaystackPop.setup({
+      key: PAYSTACK_CONFIG.publicKey,
+      email: email,
+      amount: amountInKobo,
+      currency: PAYSTACK_CONFIG.currency,
+      ref: reference,
+      metadata: {
+        ...metadata,
+        custom_fields: [
+          {
+            display_name: "Plan",
+            variable_name: "plan",
+            value: metadata.plan || 'monthly'
+          },
+          {
+            display_name: "User ID",
+            variable_name: "user_id",
+            value: metadata.userId || ''
+          }
+        ]
+      },
+      callback: (response) => {
+        console.log('Payment successful:', response);
+        callbacks.onSuccess?.(response);
+      },
+      onClose: () => {
+        console.log('Payment window closed');
+        callbacks.onClose?.();
+      }
+    });
+
+    handler.openIframe();
+    return { success: true, reference };
   } catch (error) {
     console.error('Payment initialization error:', error);
-    throw error;
-  }
-};
-
-// Verify payment with your backend
-export const verifyPayment = async (reference) => {
-  try {
-    // Call your backend to verify the payment
-    const response = await fetch(`/api/verify-payment/${reference}`);
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Payment verification failed');
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Payment verification error:', error);
-    throw error;
-  }
-};
-
-// For demo purposes only - simulate payment verification
-export const simulatePaymentVerification = async (reference) => {
-  console.log('Simulating payment verification for:', reference);
-  
-  // Simulate API call delay
-  await new Promise(resolve => setTimeout(resolve, 1500));
-  
-  // Mock successful verification
-  return {
-    status: 'success',
-    data: {
-      status: 'success',
-      reference: reference,
-      amount: 250000, // in kobo (₦2,500)
-      customer: {
-        email: 'user@example.com'
-      },
-      metadata: {
-        plan: 'premium',
-        userId: 'user_123'
-      },
-      paidAt: new Date().toISOString()
-    }
-  };
-};
-
-// Check subscription status
-export const checkSubscription = async (userId) => {
-  try {
-    const response = await fetch(`/api/subscription/${userId}`);
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error checking subscription:', error);
-    return {
-      isSubscribed: false,
-      plan: null,
-      expiresAt: null
-    };
-  }
-};
-
-// Cancel subscription
-export const cancelSubscription = async (subscriptionCode) => {
-  try {
-    const response = await fetch('/api/cancel-subscription', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ subscriptionCode })
-    });
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error cancelling subscription:', error);
-    throw error;
+    callbacks.onError?.(error.message);
+    return { success: false, error: error.message };
   }
 };
