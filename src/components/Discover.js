@@ -6,6 +6,140 @@ import { supabase } from '../services/supabase';
 import { profilesService, ripenService, chatService } from '../services/supabaseService';
 import AdBanner from './AdBanner';
 
+// Mock user data for testing
+const MOCK_USERS = [
+  {
+    id: '1',
+    alias: "Nurse_Peachy99",
+    level: "Year 2",
+    realName: "Nneka Okoro",
+    photoUrl: "https://picsum.photos/400/600?random=1",
+    distance: 1.2,
+    basics: {
+      fun: ["Eating Boli", "Watching Nollywood", "Swimming"],
+      media: ["Afrobeats", "Davido", "K-Dramas"]
+    },
+    life: {
+      based: "Sapele",
+      upbringing: "Strict but loving, raised by grandma."
+    },
+    work: {
+      job: "Student Nurse",
+      reason: "Always wanted to help people heal."
+    },
+    relationships: {
+      values: ["Honesty", "God-fearing", "Family"],
+      lookingFor: "Long-term"
+    },
+    vision: "A simple life with a small clinic of my own someday.",
+    special: "Communication is key to everything."
+  },
+  {
+    id: '2',
+    alias: "Delta_Doc_Crush",
+    level: "Intern",
+    realName: "Emeka Efe",
+    photoUrl: "https://picsum.photos/400/600?random=2",
+    distance: 15.0,
+    basics: {
+      fun: ["Gym", "Chopping Life", "Reading"],
+      media: ["Burna Boy", "Action Movies", "Afrobeats"]
+    },
+    life: {
+      based: "Warri",
+      upbringing: "Busy city life, big family."
+    },
+    work: {
+      job: "Medical Intern",
+      reason: "Medicine is challenging and rewarding."
+    },
+    relationships: {
+      values: ["Ambition", "Loyalty", "Respect"],
+      lookingFor: "Casual"
+    },
+    vision: "Traveling the world and saving lives.",
+    special: "Never go to bed angry."
+  },
+  {
+    id: '3',
+    alias: "Asaba_Angel",
+    level: "Year 3",
+    realName: "Chidinma Obi",
+    photoUrl: "https://picsum.photos/400/600?random=3",
+    distance: 45.0,
+    basics: {
+      fun: ["Cooking Egusi", "Church", "Reading"],
+      media: ["Gospel", "RomComs", "K-Dramas"]
+    },
+    life: {
+      based: "Asaba",
+      upbringing: "Quiet, religious home."
+    },
+    work: {
+      job: "Pediatric Nurse",
+      reason: "I love children."
+    },
+    relationships: {
+      values: ["God-fearing", "Family", "Honesty"],
+      lookingFor: "Marriage"
+    },
+    vision: "A happy family and a peaceful home.",
+    special: "Love is patient."
+  },
+  {
+    id: '4',
+    alias: "Ughelli_Medic",
+    level: "Intern",
+    realName: "Tega James",
+    photoUrl: "https://picsum.photos/400/600?random=4",
+    distance: 25.0,
+    basics: {
+      fun: ["Playing Ludo", "Swimming", "Gym"],
+      media: ["Wizkid", "Action Movies", "Afrobeats"]
+    },
+    life: {
+      based: "Ughelli",
+      upbringing: "Adventurous, lots of outdoor play."
+    },
+    work: {
+      job: "Emergency Room Nurse",
+      reason: "The adrenaline and saving lives."
+    },
+    relationships: {
+      values: ["Humor", "Loyalty", "Ambition"],
+      lookingFor: "Long-term"
+    },
+    vision: "Building a hospital in my hometown.",
+    special: "Respect is earned, not given."
+  },
+  {
+    id: '5',
+    alias: "Sapele_Siren",
+    level: "Year 1",
+    realName: "Blessing Keyamo",
+    photoUrl: "https://picsum.photos/400/600?random=5",
+    distance: 2.5,
+    basics: {
+      fun: ["Sleeping", "Watching Nollywood", "Eating Boli"],
+      media: ["Davido", "RomComs", "Afrobeats"]
+    },
+    life: {
+      based: "Sapele",
+      upbringing: "Fun, chaotic, full of love."
+    },
+    work: {
+      job: "Student",
+      reason: "Stable career path."
+    },
+    relationships: {
+      values: ["Family", "Respect", "Honesty"],
+      lookingFor: "Study Buddy"
+    },
+    vision: "Passing exams and getting a good job.",
+    special: "Forgiveness heals the soul."
+  }
+];
+
 const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }) => {
   const { userProfile, subscription, ripenMatch, incrementAdsSeen, matches, setMatches } = useUser();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -138,7 +272,35 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
       if (error) throw error;
 
       if (!profiles || profiles.length === 0) {
-        setPotentialMatches([]);
+        // Use mock data if no profiles in database
+        const filteredMatches = MOCK_USERS.filter(user => 
+          userProfile && user.id !== userProfile.id
+        );
+        
+        const enrichedMatches = filteredMatches.map(match => {
+          let distance = null;
+          
+          if (userLocation) {
+            const baseDistance = Math.random() * 50 + 1;
+            distance = Math.round(baseDistance * 10) / 10;
+          }
+          
+          return {
+            ...match,
+            distance,
+            basics: match.basics || { fun: [], media: [] },
+            relationships: match.relationships || { values: [], lookingFor: '' },
+            life: match.life || { based: 'Delta' }
+          };
+        });
+
+        const sortedMatches = enrichedMatches.sort((a, b) => {
+          const scoreA = calculateCompatibility(userProfile, a);
+          const scoreB = calculateCompatibility(userProfile, b);
+          return scoreB - scoreA;
+        });
+
+        setPotentialMatches(sortedMatches);
         setHasFetched(true);
         setLoading(false);
         return;
@@ -194,7 +356,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     } finally {
       setLoading(false);
     }
-  }, [userProfile, userLocation, calculateCompatibility, ripenHistory, hasFetched]);
+  }, [userProfile, userLocation, calculateCompatibility, ripenHistory, hasFetched, MOCK_USERS]);
 
   // Load matches when component mounts
   useEffect(() => {
@@ -549,7 +711,22 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
         </div>
       </div>
 
-      
+      {/* Action Buttons */}
+      <div style={styles.actions}>
+        <button 
+          onClick={() => handleManualSwipe('left')}
+          style={styles.nopeButton}
+        >
+          ✖
+        </button>
+        <button 
+          onClick={() => handleManualSwipe('right')}
+          style={styles.ripenButton}
+        >
+          🍑
+        </button>
+      </div>
+
       {/* Bottom Navigation */}
       <div style={styles.bottomNav}>
         <div style={{...styles.navItem, ...styles.navItemActive}}>

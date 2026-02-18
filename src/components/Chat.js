@@ -15,6 +15,7 @@ const Chat = ({ matchId, onBack }) => {
   const [chatRoom, setChatRoom] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const messagesAreaRef = useRef(null);
 
   // Find match from context or fetch if not available
   useEffect(() => {
@@ -101,16 +102,6 @@ const Chat = ({ matchId, onBack }) => {
     
     loadMessages();
   }, [userProfile?.id, matchId, setChats]);
-
-  // Subscribe to typing indicators or presence (optional)
-  useEffect(() => {
-    if (!chatRoom?.id || !userProfile?.id) return;
-
-    // You could implement typing indicators here
-    // This is a placeholder for future enhancement
-
-    return () => {};
-  }, [chatRoom?.id, userProfile?.id]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -418,8 +409,6 @@ const Chat = ({ matchId, onBack }) => {
     </div>
   );
 };
-
-const messagesAreaRef = React.createRef();
 
 const styles = {
   container: {
