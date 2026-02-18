@@ -98,15 +98,23 @@ export const ripenService = {
 
   // Check if mutual match exists
   async checkMutualMatch(userId, targetUserId) {
-    const { data, error } = await supabase
-      .from('ripen_history')
-      .select('*')
-      .eq('user_id', targetUserId)
-      .eq('target_user_id', userId)
-      .maybeSingle();
-    
-    if (error) throw error;
-    return !!data;
+    try {
+      const { data, error } = await supabase
+        .from('ripen_history')
+        .select('*')
+        .eq('user_id', targetUserId)
+        .eq('target_user_id', userId)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error checking mutual match:', error);
+        return false;
+      }
+      return !!data;
+    } catch (error) {
+      console.error('Exception checking mutual match:', error);
+      return false;
+    }
   }
 };
 

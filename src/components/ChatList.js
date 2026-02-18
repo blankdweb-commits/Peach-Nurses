@@ -1,14 +1,14 @@
 // components/ChatList.js
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUser } from '../context/UserContext';
-import { chatService, realtimeService } from '../services/supabaseService';
+import { supabase } from '../services/supabase';
+import { chatService, realtimeService, profilesService } from '../services/supabaseService';
 import LoadingSpinner from './LoadingSpinner';
 
 const ChatList = ({ onSelectChat }) => {
   const { userProfile, matches, setMatches, chats, setChats } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [chatRooms, setChatRooms] = useState([]);
   const [touchTimeout, setTouchTimeout] = useState(null);
 
   // Load chat rooms and messages
@@ -21,29 +21,97 @@ const ChatList = ({ onSelectChat }) => {
         
         // Get user's chat rooms
         const rooms = await chatService.getUserChatRooms(userProfile.id);
-        setChatRooms(rooms);
         
-        // Load messages for each room
+        // Load messages for each room and fetch match profiles
         const allMessages = {};
+        const profiles = {};
+        
         for (const room of rooms) {
+          // Get messages
           const messages = await chatService.getMessages(room.id);
           allMessages[room.id] = messages;
+          
+          // Get the other participant's ID
+          const otherUserId = room.participants.find(id => id !== userProfile.id);
+          
+          // Fetch their profile if not already loaded
+          if (otherUserId && !profiles[otherUserId]) {
+            try {
+              const profile = await profilesService.getProfile(otherUserId);
+              profiles[otherUserId] = profile;
+            } catch (profileError) {
+              console.error('Error fetching profile:', profileError);
+              profiles[otherUserId] = {
+                alias: 'User',
+                name: 'Anonymous',
+                photo_url: null
+              };
+            }
+          }
         }
         
         setChats(allMessages);
         
-        // Subscribe to new messages
-        const subscriptions = rooms.map(room => 
-          realtimeService.subscribeToMessages(room.id, (newMessage) => {
-            setChats(prev => ({
-              ...prev,
-              [room.id]: [...(prev[room.id] || []), newMessage]
-            }));
-          })
-        );
+        // Update matches array if not already set
+        if (!matches || matches.length === 0) {
+          const matchList = rooms.map(room => {
+            const otherUserId = room.participants.find(id => id !== userProfile.id);
+            const profile = profiles[otherUserId] || {};
+            return {
+              id: room.id,
+              userId: otherUserId,
+              alias: profile?.alias || 'Anonymous',
+              name: profile?.name || 'Anonymous',
+              photoUrl: profile?.photo_url,
+              lastMessage: room.last_message,
+              lastMessageTime: room.last_message_at,
+              life: profile?.life || {},
+              basics: profile?.basics || {}
+            };
+          });
+          setMatches(matchList);
+        }
+        
+        // Subscribe to new messages for all rooms
+        const subscriptions = rooms.map(room => {
+          if (!room?.id) return null;
+          
+          try {
+            return realtimeService.subscribeToMessages(room.id, (newMessage) => {
+              // Update messages
+              setChats(prev => ({
+                ...prev,
+                [room.id]: [...(prev[room.id] || []), newMessage]
+              }));
+              
+              // Update last message in matches
+              setMatches(prev => prev.map(match => 
+                match.id === room.id 
+                  ? { ...match, lastMessage: newMessage.content, lastMessageTime: newMessage.created_at }
+                  : match
+              ));
+              
+              // Show notification if not current user
+              if (newMessage.sender_id !== userProfile.id) {
+                console.log('New message from:', newMessage.sender_id);
+              }
+            });
+          } catch (subError) {
+            console.error('Error subscribing to messages:', subError);
+            return null;
+          }
+        }).filter(Boolean);
         
         return () => {
-          subscriptions.forEach(sub => sub.unsubscribe());
+          subscriptions.forEach(sub => {
+            if (sub && sub.unsubscribe) {
+              try {
+                sub.unsubscribe();
+              } catch (unsubError) {
+                console.error('Error unsubscribing:', unsubError);
+              }
+            }
+          });
         };
       } catch (error) {
         console.error('Error loading chats:', error);
@@ -53,7 +121,79 @@ const ChatList = ({ onSelectChat }) => {
     };
     
     loadChats();
-  }, [userProfile?.id, setChats]);
+  }, [userProfile?.id, setChats, setMatches, matches]);
+
+  // Subscribe to new matches (ripen_history)
+  useEffect(() => {
+    if (!userProfile?.id) return;
+
+    let subscription;
+    
+    try {
+      subscription = supabase
+        .channel('new_matches')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'ripen_history',
+            filter: `target_user_id=eq.${userProfile.id}`
+          },
+          async (payload) => {
+            try {
+              // Check if it's a mutual match
+              const isMutual = await chatService.checkMutualMatch(
+                userProfile.id,
+                payload.new.user_id
+              );
+
+              if (isMutual) {
+                // Get or create chat room
+                const room = await chatService.getOrCreateChatRoom(
+                  userProfile.id,
+                  payload.new.user_id
+                );
+
+                // Fetch matched user's profile
+                const profile = await profilesService.getProfile(payload.new.user_id);
+
+                // Add to matches
+                const newMatch = {
+                  id: room.id,
+                  userId: payload.new.user_id,
+                  alias: profile?.alias || 'Anonymous',
+                  name: profile?.name || 'Anonymous',
+                  photoUrl: profile?.photo_url,
+                  lastMessage: null,
+                  lastMessageTime: null,
+                  matchedAt: new Date().toISOString(),
+                  life: profile?.life || {},
+                  basics: profile?.basics || {}
+                };
+
+                setMatches(prev => [newMatch, ...prev]);
+              }
+            } catch (matchError) {
+              console.error('Error processing new match:', matchError);
+            }
+          }
+        )
+        .subscribe();
+    } catch (subError) {
+      console.error('Error subscribing to matches:', subError);
+    }
+
+    return () => {
+      if (subscription) {
+        try {
+          subscription.unsubscribe();
+        } catch (unsubError) {
+          console.error('Error unsubscribing from matches:', unsubError);
+        }
+      }
+    };
+  }, [userProfile?.id, setMatches]);
 
   // Filter matches based on search query
   const filteredMatches = useMemo(() => {
@@ -137,14 +277,28 @@ const ChatList = ({ onSelectChat }) => {
 
   const handleSelectChat = async (matchId) => {
     try {
+      // Find the match to get the userId
+      const match = matches.find(m => m.id === matchId);
+      if (!match) return;
+      
       // Mark messages as read when opening chat
-      const roomId = [userProfile.id, matchId].sort().join('_');
+      const roomId = [userProfile.id, match.userId].sort().join('_');
       await chatService.markMessagesAsRead(roomId, userProfile.id);
-      onSelectChat(matchId);
+      onSelectChat(match.userId); // Pass the userId, not the roomId
     } catch (error) {
       console.error('Error marking messages as read:', error);
       onSelectChat(matchId);
     }
+  };
+
+  // Safe image URL handler
+  const getSafeImageUrl = (url) => {
+    if (!url) return null;
+    // Check if it's a Supabase storage URL or external URL
+    if (url.includes('supabase.co') || url.startsWith('http')) {
+      return url;
+    }
+    return null;
   };
 
   if (loading) {
@@ -216,6 +370,7 @@ const ChatList = ({ onSelectChat }) => {
               const lastMessageContent = lastMessage?.content || "Say hello! 👋";
               const lastMessageTime = lastMessage?.created_at;
               const unreadCount = getUnreadCount(match.id);
+              const imageUrl = getSafeImageUrl(match.photo_url || match.photoUrl);
 
               return (
                 <li
@@ -233,14 +388,29 @@ const ChatList = ({ onSelectChat }) => {
                 >
                   {/* Avatar */}
                   <div style={styles.avatarContainer}>
-                    <img
-                      src={match.photo_url || match.photoUrl}
-                      alt={match.alias || 'User'}
-                      style={styles.avatar}
-                      onError={(e) => {
-                        e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="28" fill="%23FF6347"/><text x="28" y="35" font-size="24" text-anchor="middle" fill="white">🍑</text></svg>';
-                      }}
-                    />
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={match.alias || 'User'}
+                        style={styles.avatar}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="28" fill="%23FF6347"/><text x="28" y="35" font-size="24" text-anchor="middle" fill="white">🍑</text></svg>';
+                        }}
+                      />
+                    ) : (
+                      <div style={{
+                        ...styles.avatar,
+                        backgroundColor: '#FF6347',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'white',
+                        fontSize: '1.5rem'
+                      }}>
+                        {match.alias?.charAt(0).toUpperCase() || '🍑'}
+                      </div>
+                    )}
                   </div>
 
                   {/* Chat Info */}

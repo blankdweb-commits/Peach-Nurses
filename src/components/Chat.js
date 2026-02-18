@@ -1,20 +1,52 @@
 // components/Chat.js
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser } from '../context/UserContext';
-import { chatService, realtimeService } from '../services/supabaseService';
+import { chatService, realtimeService, profilesService } from '../services/supabaseService';
 import { wingmanService } from '../services/wingmanService';
 import LoadingSpinner from './LoadingSpinner';
 
 const Chat = ({ matchId, onBack }) => {
-  const { userProfile, matches, chats, setChats, subscription } = useUser();
+  const { userProfile, matches, setMatches, chats, setChats, subscription } = useUser();
   const [inputText, setInputText] = useState('');
   const [wingmanSuggestion, setWingmanSuggestion] = useState(null);
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState([]);
+  const [matchProfile, setMatchProfile] = useState(null);
+  const [chatRoom, setChatRoom] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  const match = matches?.find(u => u.id === matchId);
+  // Find match from context or fetch if not available
+  useEffect(() => {
+    const loadMatchProfile = async () => {
+      if (!matchId) return;
+      
+      // Try to find in existing matches
+      const existingMatch = matches?.find(u => u.userId === matchId || u.id === matchId);
+      
+      if (existingMatch) {
+        setMatchProfile(existingMatch);
+      } else {
+        // Fetch profile from Supabase
+        try {
+          const profile = await profilesService.getProfile(matchId);
+          setMatchProfile({
+            id: matchId,
+            userId: matchId,
+            alias: profile?.alias || 'Anonymous',
+            name: profile?.name || 'Anonymous',
+            photoUrl: profile?.photo_url,
+            basics: profile?.basics || {},
+            life: profile?.life || {}
+          });
+        } catch (err) {
+          console.error('Error fetching match profile:', err);
+        }
+      }
+    };
+
+    loadMatchProfile();
+  }, [matchId, matches]);
 
   // Load messages
   useEffect(() => {
@@ -26,10 +58,17 @@ const Chat = ({ matchId, onBack }) => {
         
         // Get or create chat room
         const room = await chatService.getOrCreateChatRoom(userProfile.id, matchId);
+        setChatRoom(room);
         
         // Load messages
         const loadedMessages = await chatService.getMessages(room.id);
         setMessages(loadedMessages);
+        
+        // Update global chats state
+        setChats(prev => ({
+          ...prev,
+          [room.id]: loadedMessages
+        }));
         
         // Mark messages as read
         await chatService.markMessagesAsRead(room.id, userProfile.id);
@@ -37,8 +76,15 @@ const Chat = ({ matchId, onBack }) => {
         // Subscribe to new messages
         const subscription = realtimeService.subscribeToMessages(room.id, (newMessage) => {
           setMessages(prev => [...prev, newMessage]);
+          
+          // Update global chats
+          setChats(prev => ({
+            ...prev,
+            [room.id]: [...(prev[room.id] || []), newMessage]
+          }));
+          
+          // Mark as read immediately if we're in the chat and it's from the other user
           if (newMessage.sender_id !== userProfile.id) {
-            // Mark as read immediately if we're in the chat
             chatService.markMessagesAsRead(room.id, userProfile.id);
           }
         });
@@ -54,7 +100,17 @@ const Chat = ({ matchId, onBack }) => {
     };
     
     loadMessages();
-  }, [userProfile?.id, matchId]);
+  }, [userProfile?.id, matchId, setChats]);
+
+  // Subscribe to typing indicators or presence (optional)
+  useEffect(() => {
+    if (!chatRoom?.id || !userProfile?.id) return;
+
+    // You could implement typing indicators here
+    // This is a placeholder for future enhancement
+
+    return () => {};
+  }, [chatRoom?.id, userProfile?.id]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -70,33 +126,47 @@ const Chat = ({ matchId, onBack }) => {
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!inputText.trim() || !userProfile?.id || !matchId) return;
+    if (!inputText.trim() || !userProfile?.id || !matchId || !chatRoom) return;
+
+    const messageText = inputText.trim();
+    setInputText(''); // Clear immediately for better UX
 
     try {
-      const roomId = [userProfile.id, matchId].sort().join('_');
-      
       // Send message
       const newMessage = await chatService.sendMessage(
-        roomId,
+        chatRoom.id,
         userProfile.id,
-        inputText.trim()
+        messageText
       );
       
       // Update local state
       setMessages(prev => [...prev, newMessage]);
-      setInputText('');
+      
+      // Update global chats
+      setChats(prev => ({
+        ...prev,
+        [chatRoom.id]: [...(prev[chatRoom.id] || []), newMessage]
+      }));
+      
       setWingmanSuggestion(null);
       
-      setTimeout(() => inputRef.current?.focus(), 100);
+      // Update matches with last message
+      setMatches(prev => prev.map(m => 
+        (m.id === chatRoom.id || m.userId === matchId)
+          ? { ...m, lastMessage: messageText, lastMessageTime: newMessage.created_at }
+          : m
+      ));
+      
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Failed to send message. Please try again.');
+      setInputText(messageText); // Restore text on error
     }
   };
 
   const handleWingman = () => {
     if (!subscription?.isPremium) {
-      alert("Wingman is a Premium feature! Upgrade to get AI-powered conversation help.");
+      alert("✨ Wingman is a Premium feature! Upgrade to get AI-powered conversation suggestions, unlimited ripens, and more!");
       return;
     }
 
@@ -108,7 +178,7 @@ const Chat = ({ matchId, onBack }) => {
       }
     }
 
-    const line = wingmanService.generateLine(userProfile, match, context);
+    const line = wingmanService.generateLine(userProfile, matchProfile, context);
     setWingmanSuggestion(line);
     setInputText(line);
   };
@@ -119,11 +189,43 @@ const Chat = ({ matchId, onBack }) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const formatDate = (timestamp) => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString();
+    }
+  };
+
+  // Group messages by date
+  const groupedMessages = useCallback(() => {
+    const groups = [];
+    let currentDate = null;
+
+    messages.forEach(msg => {
+      const msgDate = formatDate(msg.created_at);
+      if (msgDate !== currentDate) {
+        currentDate = msgDate;
+        groups.push({ type: 'date', date: msgDate });
+      }
+      groups.push({ type: 'message', data: msg });
+    });
+
+    return groups;
+  }, [messages]);
+
   if (loading) {
     return <LoadingSpinner message="Loading conversation..." />;
   }
 
-  if (!match) {
+  if (!matchProfile) {
     return (
       <div style={styles.notFoundContainer}>
         <div style={styles.notFoundIcon}>🍑</div>
@@ -148,17 +250,17 @@ const Chat = ({ matchId, onBack }) => {
           ←
         </button>
         
-        <div style={styles.headerContent}>
+        <div style={styles.headerContent} onClick={() => {/* Navigate to profile */}}>
           <img
-            src={match.photo_url || match.photoUrl}
-            alt={match.name || match.realName}
+            src={matchProfile.photo_url || matchProfile.photoUrl}
+            alt={matchProfile.name || matchProfile.realName}
             style={styles.avatar}
             onError={(e) => {
               e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="22" fill="%23FF6347"/><text x="22" y="28" font-size="18" text-anchor="middle" fill="white">🍑</text></svg>';
             }}
           />
           <div style={styles.headerInfo}>
-            <div style={styles.name}>{match.name || match.realName}</div>
+            <div style={styles.name}>{matchProfile.name || matchProfile.realName || matchProfile.alias}</div>
             <div style={styles.status}>
               <span style={styles.statusDot}></span>
               Online
@@ -168,26 +270,35 @@ const Chat = ({ matchId, onBack }) => {
       </header>
 
       {/* Messages Area */}
-      <div style={styles.messagesArea}>
+      <div style={styles.messagesArea} ref={messagesAreaRef}>
         {messages.length === 0 && (
           <div style={styles.welcomeMessage}>
             <div style={styles.welcomeIcon}>👋</div>
             <h3 style={styles.welcomeTitle}>
-              Say hello to {match.name || match.realName}!
+              Say hello to {matchProfile.name || matchProfile.realName || matchProfile.alias}!
             </h3>
             <p style={styles.welcomeText}>
               You matched because you both like{' '}
-              <strong>{match.basics?.fun?.[0] || 'similar things'}</strong>.
+              <strong>{matchProfile.basics?.fun?.[0] || 'similar things'}</strong>.
             </p>
-            {match.basics?.fun?.[1] && (
+            {matchProfile.basics?.fun?.[1] && (
               <p style={styles.welcomeSubtext}>
-                You also share interest in {match.basics.fun[1]}!
+                You also share interest in {matchProfile.basics.fun[1]}!
               </p>
             )}
           </div>
         )}
 
-        {messages.map((msg) => {
+        {groupedMessages().map((item, index) => {
+          if (item.type === 'date') {
+            return (
+              <div key={`date-${index}`} style={styles.dateDivider}>
+                <span style={styles.dateText}>{item.date}</span>
+              </div>
+            );
+          }
+
+          const msg = item.data;
           const isMe = msg.sender_id === userProfile?.id;
           
           return (
@@ -198,11 +309,23 @@ const Chat = ({ matchId, onBack }) => {
                 alignItems: isMe ? 'flex-end' : 'flex-start'
               }}
             >
+              {!isMe && (
+                <img
+                  src={matchProfile.photo_url || matchProfile.photoUrl}
+                  alt="avatar"
+                  style={styles.messageAvatar}
+                  onError={(e) => {
+                    e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="15" fill="%23FF6347"/><text x="15" y="20" font-size="12" text-anchor="middle" fill="white">🍑</text></svg>';
+                  }}
+                />
+              )}
               <div style={{
                 ...styles.messageBubble,
                 backgroundColor: isMe ? '#FF6347' : '#fff',
                 color: isMe ? 'white' : '#333',
-                border: isMe ? 'none' : '1px solid #e0e0e0'
+                border: isMe ? 'none' : '1px solid #e0e0e0',
+                marginLeft: !isMe ? '8px' : '0',
+                marginRight: isMe ? '8px' : '0'
               }}>
                 {msg.content}
                 <div style={{
@@ -211,6 +334,9 @@ const Chat = ({ matchId, onBack }) => {
                   textAlign: isMe ? 'end' : 'start'
                 }}>
                   {formatTime(msg.created_at)}
+                  {isMe && msg.read && (
+                    <span style={styles.readReceipt}> ✓✓</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -258,7 +384,7 @@ const Chat = ({ matchId, onBack }) => {
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Type a message..."
+            placeholder={`Message ${matchProfile.name || matchProfile.alias}...`}
             style={styles.messageInput}
           />
 
@@ -292,6 +418,8 @@ const Chat = ({ matchId, onBack }) => {
     </div>
   );
 };
+
+const messagesAreaRef = React.createRef();
 
 const styles = {
   container: {
@@ -356,7 +484,8 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     flex: 1,
-    minWidth: 0
+    minWidth: 0,
+    cursor: 'pointer'
   },
   avatar: {
     width: '44px',
@@ -401,6 +530,18 @@ const styles = {
     backgroundImage: 'linear-gradient(rgba(255, 99, 71, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 99, 71, 0.03) 1px, transparent 1px)',
     backgroundSize: '20px 20px'
   },
+  dateDivider: {
+    textAlign: 'center',
+    margin: '20px 0',
+    position: 'relative'
+  },
+  dateText: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    padding: '4px 12px',
+    borderRadius: '12px',
+    fontSize: '0.75rem',
+    color: '#666'
+  },
   welcomeMessage: {
     textAlign: 'center',
     color: '#666',
@@ -432,20 +573,35 @@ const styles = {
   },
   messageContainer: {
     display: 'flex',
-    flexDirection: 'column',
-    marginBottom: '16px'
+    marginBottom: '16px',
+    position: 'relative'
+  },
+  messageAvatar: {
+    width: '30px',
+    height: '30px',
+    borderRadius: '50%',
+    alignSelf: 'flex-end'
   },
   messageBubble: {
-    maxWidth: '85%',
-    padding: '12px 16px',
+    maxWidth: '70%',
+    padding: '10px 14px',
     borderRadius: '18px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
     position: 'relative',
-    wordBreak: 'break-word'
+    wordBreak: 'break-word',
+    fontSize: '0.95rem',
+    lineHeight: '1.4'
   },
   messageTime: {
-    fontSize: '0.75rem',
-    marginTop: '4px'
+    fontSize: '0.7rem',
+    marginTop: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '2px'
+  },
+  readReceipt: {
+    fontSize: '0.7rem',
+    marginLeft: '2px'
   },
   suggestionBanner: {
     padding: '12px 16px',
@@ -495,7 +651,7 @@ const styles = {
   },
   inputForm: {
     display: 'flex',
-    gap: '12px',
+    gap: '8px',
     alignItems: 'center'
   },
   wingmanButton: {
@@ -515,7 +671,7 @@ const styles = {
   },
   messageInput: {
     flex: 1,
-    padding: '12px 18px',
+    padding: '12px 16px',
     borderRadius: '24px',
     border: '1px solid #ddd',
     fontSize: '1rem',
