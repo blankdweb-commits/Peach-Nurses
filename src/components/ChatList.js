@@ -1,5 +1,5 @@
 // components/ChatList.js
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../services/supabase';
 import { chatService, realtimeService, profilesService } from '../services/supabaseService';
@@ -10,6 +10,8 @@ const ChatList = ({ onSelectChat }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [touchTimeout, setTouchTimeout] = useState(null);
+  const [connectionError, setConnectionError] = useState(false);
+  const subscriptionsRef = useRef([]);
 
   // Load chat rooms and messages
   useEffect(() => {
@@ -18,37 +20,55 @@ const ChatList = ({ onSelectChat }) => {
       
       try {
         setLoading(true);
+        setConnectionError(false);
         
-        // Get user's chat rooms
-        const rooms = await chatService.getUserChatRooms(userProfile.id);
+        // Get user's chat rooms with error handling
+        let rooms = [];
+        try {
+          rooms = await chatService.getUserChatRooms(userProfile.id) || [];
+        } catch (roomError) {
+          console.error('Error fetching chat rooms:', roomError);
+          setConnectionError(true);
+          setLoading(false);
+          return;
+        }
         
         // Load messages for each room and fetch match profiles
         const allMessages = {};
         const profiles = {};
         
-        for (const room of rooms) {
-          // Get messages
-          const messages = await chatService.getMessages(room.id);
-          allMessages[room.id] = messages;
-          
-          // Get the other participant's ID
-          const otherUserId = room.participants.find(id => id !== userProfile.id);
-          
-          // Fetch their profile if not already loaded
-          if (otherUserId && !profiles[otherUserId]) {
-            try {
-              const profile = await profilesService.getProfile(otherUserId);
-              profiles[otherUserId] = profile;
-            } catch (profileError) {
-              console.error('Error fetching profile:', profileError);
-              profiles[otherUserId] = {
-                alias: 'User',
-                name: 'Anonymous',
-                photo_url: null
-              };
+        // Process rooms in parallel for better performance
+        const roomPromises = rooms.map(async (room) => {
+          try {
+            // Get messages
+            const messages = await chatService.getMessages(room.id) || [];
+            allMessages[room.id] = messages;
+            
+            // Get the other participant's ID
+            const otherUserId = room.participants.find(id => id !== userProfile.id);
+            
+            // Fetch their profile if not already loaded
+            if (otherUserId && !profiles[otherUserId]) {
+              try {
+                const profile = await profilesService.getProfile(otherUserId);
+                profiles[otherUserId] = profile;
+              } catch (profileError) {
+                console.error('Error fetching profile:', profileError);
+                profiles[otherUserId] = {
+                  alias: 'User',
+                  name: 'Anonymous',
+                  photo_url: null,
+                  life: {},
+                  basics: {}
+                };
+              }
             }
+          } catch (roomError) {
+            console.error('Error processing room:', roomError);
           }
-        }
+        });
+        
+        await Promise.all(roomPromises);
         
         setChats(allMessages);
         
@@ -73,16 +93,23 @@ const ChatList = ({ onSelectChat }) => {
         }
         
         // Subscribe to new messages for all rooms
-        const subscriptions = rooms.map(room => {
+        const newSubscriptions = rooms.map(room => {
           if (!room?.id) return null;
           
           try {
             return realtimeService.subscribeToMessages(room.id, (newMessage) => {
               // Update messages
-              setChats(prev => ({
-                ...prev,
-                [room.id]: [...(prev[room.id] || []), newMessage]
-              }));
+              setChats(prev => {
+                const existingMessages = prev[room.id] || [];
+                // Avoid duplicates
+                if (existingMessages.some(msg => msg.id === newMessage.id)) {
+                  return prev;
+                }
+                return {
+                  ...prev,
+                  [room.id]: [...existingMessages, newMessage]
+                };
+              });
               
               // Update last message in matches
               setMatches(prev => prev.map(match => 
@@ -90,11 +117,6 @@ const ChatList = ({ onSelectChat }) => {
                   ? { ...match, lastMessage: newMessage.content, lastMessageTime: newMessage.created_at }
                   : match
               ));
-              
-              // Show notification if not current user
-              if (newMessage.sender_id !== userProfile.id) {
-                console.log('New message from:', newMessage.sender_id);
-              }
             });
           } catch (subError) {
             console.error('Error subscribing to messages:', subError);
@@ -102,25 +124,32 @@ const ChatList = ({ onSelectChat }) => {
           }
         }).filter(Boolean);
         
-        return () => {
-          subscriptions.forEach(sub => {
-            if (sub && sub.unsubscribe) {
-              try {
-                sub.unsubscribe();
-              } catch (unsubError) {
-                console.error('Error unsubscribing:', unsubError);
-              }
-            }
-          });
-        };
+        // Store subscriptions for cleanup
+        subscriptionsRef.current = newSubscriptions;
+        
       } catch (error) {
         console.error('Error loading chats:', error);
+        setConnectionError(true);
       } finally {
         setLoading(false);
       }
     };
     
     loadChats();
+    
+    // Cleanup function
+    return () => {
+      subscriptionsRef.current.forEach(sub => {
+        if (sub && sub.unsubscribe) {
+          try {
+            sub.unsubscribe();
+          } catch (unsubError) {
+            console.error('Error unsubscribing:', unsubError);
+          }
+        }
+      });
+      subscriptionsRef.current = [];
+    };
   }, [userProfile?.id, setChats, setMatches, matches]);
 
   // Subscribe to new matches (ripen_history)
@@ -156,7 +185,12 @@ const ChatList = ({ onSelectChat }) => {
                 );
 
                 // Fetch matched user's profile
-                const profile = await profilesService.getProfile(payload.new.user_id);
+                let profile = { alias: 'Anonymous', name: 'Anonymous', photo_url: null, life: {}, basics: {} };
+                try {
+                  profile = await profilesService.getProfile(payload.new.user_id) || profile;
+                } catch (profileError) {
+                  console.error('Error fetching new match profile:', profileError);
+                }
 
                 // Add to matches
                 const newMatch = {
@@ -222,18 +256,22 @@ const ChatList = ({ onSelectChat }) => {
   const formatLastSeen = useCallback((timestamp) => {
     if (!timestamp) return 'New match';
     
-    const now = new Date();
-    const lastMsgDate = new Date(timestamp);
-    const diffMs = now - lastMsgDate;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    try {
+      const now = new Date();
+      const lastMsgDate = new Date(timestamp);
+      const diffMs = now - lastMsgDate;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return lastMsgDate.toLocaleDateString();
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return lastMsgDate.toLocaleDateString();
+    } catch (e) {
+      return 'New match';
+    }
   }, []);
 
   const getUnreadCount = useCallback((matchId) => {
@@ -284,25 +322,44 @@ const ChatList = ({ onSelectChat }) => {
       // Mark messages as read when opening chat
       const roomId = [userProfile.id, match.userId].sort().join('_');
       await chatService.markMessagesAsRead(roomId, userProfile.id);
-      onSelectChat(match.userId); // Pass the userId, not the roomId
+      onSelectChat(match.userId);
     } catch (error) {
       console.error('Error marking messages as read:', error);
       onSelectChat(matchId);
     }
   };
 
-  // Safe image URL handler
+  // Safe image URL handler with fallback
   const getSafeImageUrl = (url) => {
     if (!url) return null;
-    // Check if it's a Supabase storage URL or external URL
-    if (url.includes('supabase.co') || url.startsWith('http')) {
+    // Only allow specific domains to prevent CORS issues
+    if (url.includes('supabase.co')) {
       return url;
     }
+    // For external URLs, return null to use fallback avatar
     return null;
   };
 
   if (loading) {
     return <LoadingSpinner message="Loading your chats..." />;
+  }
+
+  if (connectionError) {
+    return (
+      <div style={styles.errorContainer}>
+        <div style={styles.errorIcon}>⚠️</div>
+        <h3 style={styles.errorTitle}>Connection Error</h3>
+        <p style={styles.errorText}>
+          Unable to load your chats. Please check your internet connection and try again.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          style={styles.retryButton}
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   if (!matches || matches.length === 0) {
@@ -395,7 +452,25 @@ const ChatList = ({ onSelectChat }) => {
                         style={styles.avatar}
                         onError={(e) => {
                           e.target.onerror = null;
-                          e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="28" fill="%23FF6347"/><text x="28" y="35" font-size="24" text-anchor="middle" fill="white">🍑</text></svg>';
+                          e.target.style.display = 'none';
+                          // Show fallback text avatar
+                          const parent = e.target.parentElement;
+                          if (parent) {
+                            const fallback = document.createElement('div');
+                            fallback.style.cssText = `
+                              width: 56px;
+                              height: 56px;
+                              border-radius: 50%;
+                              background-color: #FF6347;
+                              display: flex;
+                              align-items: center;
+                              justify-content: center;
+                              color: white;
+                              font-size: 1.5rem;
+                            `;
+                            fallback.textContent = match.alias?.charAt(0).toUpperCase() || '🍑';
+                            parent.appendChild(fallback);
+                          }
                         }}
                       />
                     ) : (
@@ -464,29 +539,6 @@ const ChatList = ({ onSelectChat }) => {
           </ul>
         )}
       </div>
-
-      <style jsx="true">{`
-        @keyframes pulse {
-          0% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.8; transform: scale(1.05); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-        
-        @media (max-width: 480px) {
-          h1 { font-size: 1.3rem !important; }
-          .avatar { width: 48px !important; height: 48px !important; }
-          .message-text { font-size: 0.85rem !important; }
-          li { min-height: 72px !important; }
-        }
-        
-        .chat-list {
-          -webkit-overflow-scrolling: touch;
-        }
-        
-        button, li {
-          -webkit-tap-highlight-color: transparent;
-        }
-      `}</style>
     </div>
   );
 };
@@ -510,6 +562,15 @@ const styles = {
     textAlign: 'center',
     minHeight: '60dvh'
   },
+  errorContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '40px 20px',
+    textAlign: 'center',
+    minHeight: '60dvh'
+  },
   emptyIcon: {
     width: '100px',
     height: '100px',
@@ -521,8 +582,16 @@ const styles = {
     fontSize: '3rem',
     marginBottom: '20px'
   },
+  errorIcon: {
+    fontSize: '4rem',
+    marginBottom: '20px'
+  },
   emptyTitle: {
     color: '#FF6347',
+    marginBottom: '12px'
+  },
+  errorTitle: {
+    color: '#ff4444',
     marginBottom: '12px'
   },
   emptyText: {
@@ -530,7 +599,22 @@ const styles = {
     marginBottom: '24px',
     maxWidth: '300px'
   },
+  errorText: {
+    color: '#666',
+    marginBottom: '24px',
+    maxWidth: '300px'
+  },
   discoverButton: {
+    padding: '12px 24px',
+    background: '#FF6347',
+    color: 'white',
+    border: 'none',
+    borderRadius: '25px',
+    cursor: 'pointer',
+    fontSize: '1rem',
+    fontWeight: '600'
+  },
+  retryButton: {
     padding: '12px 24px',
     background: '#FF6347',
     color: 'white',
@@ -621,7 +705,9 @@ const styles = {
   },
   avatarContainer: {
     position: 'relative',
-    flexShrink: 0
+    flexShrink: 0,
+    width: '56px',
+    height: '56px'
   },
   avatar: {
     width: '56px',

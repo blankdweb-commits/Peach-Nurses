@@ -1,7 +1,12 @@
 // src/components/Membership.js
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
-import { initializePaystackPayment, PAYSTACK_CONFIG, loadPaystackScript } from '../services/paystackService';
+import { 
+  initializePaystackPayment, 
+  PAYSTACK_CONFIG, 
+  loadPaystackScript,
+  isPaystackConfigured 
+} from '../services/paystackService';
 
 const Membership = ({ onBack }) => {
   const { userProfile, grantPremium, subscription } = useUser();
@@ -10,20 +15,34 @@ const Membership = ({ onBack }) => {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [paystackLoaded, setPaystackLoaded] = useState(false);
+  const [configStatus, setConfigStatus] = useState('checking');
 
-  // Load Paystack script on component mount
+  // Check configuration and load Paystack script
   useEffect(() => {
-    const loadPaystack = async () => {
-      try {
-        await loadPaystackScript();
+    const checkConfig = async () => {
+      // Check if Paystack is configured
+      const configured = isPaystackConfigured();
+      
+      if (configured) {
+        setConfigStatus('configured');
+        try {
+          await loadPaystackScript();
+          setPaystackLoaded(true);
+          console.log('✅ Paystack loaded successfully');
+        } catch (err) {
+          console.error('Failed to load Paystack:', err);
+          setError('Failed to load payment system. Using simulation mode.');
+          // Still set loaded to true for simulation mode
+          setPaystackLoaded(true);
+        }
+      } else {
+        setConfigStatus('simulation');
         setPaystackLoaded(true);
-        console.log('Paystack loaded successfully');
-      } catch (err) {
-        console.error('Failed to load Paystack:', err);
-        setError('Failed to load payment system. Please refresh the page.');
+        console.log('🔧 Using simulation mode - No Paystack key detected');
       }
     };
-    loadPaystack();
+
+    checkConfig();
   }, []);
 
   const plans = {
@@ -59,11 +78,6 @@ const Membership = ({ onBack }) => {
       return;
     }
 
-    if (!PAYSTACK_CONFIG.publicKey) {
-      setError('Payment system not configured. Please contact support.');
-      return;
-    }
-
     if (!paystackLoaded) {
       setError('Payment system still loading. Please try again.');
       return;
@@ -81,7 +95,7 @@ const Membership = ({ onBack }) => {
       userEmail: userProfile.email
     };
 
-    await initializePaystackPayment(
+    initializePaystackPayment(
       userProfile.email,
       plan.price,
       metadata,
@@ -118,6 +132,9 @@ const Membership = ({ onBack }) => {
     );
   };
 
+  // Show configuration warning in development
+  const showConfigWarning = configStatus === 'simulation' && process.env.NODE_ENV === 'development';
+
   // Show premium active state
   if (subscription?.isPremium || paymentStatus === 'success') {
     return (
@@ -149,6 +166,16 @@ const Membership = ({ onBack }) => {
         <h2 style={styles.headerTitle}>Upgrade to Premium</h2>
       </header>
 
+      {/* Configuration Warning - Only in development */}
+      {showConfigWarning && (
+        <div style={styles.warning}>
+          <strong>🔧 Simulation Mode:</strong> No Paystack key detected. Payments will be simulated for testing.
+          <div style={styles.warningNote}>
+            Add REACT_APP_PAYSTACK_PUBLIC_KEY to your .env file for real payments.
+          </div>
+        </div>
+      )}
+
       {/* Paystack Loading State */}
       {!paystackLoaded && !error && (
         <div style={styles.loadingPaystack}>
@@ -169,6 +196,9 @@ const Membership = ({ onBack }) => {
         <div style={styles.processing}>
           <div style={styles.spinner}></div>
           <p>Opening Paystack payment window...</p>
+          {configStatus === 'simulation' && (
+            <p style={styles.simulationNote}>Using simulation mode - no actual payment will be processed</p>
+          )}
         </div>
       )}
 
@@ -241,7 +271,9 @@ const Membership = ({ onBack }) => {
         </button>
 
         <p style={styles.note}>
-          🔒 Secure payment powered by Paystack. All major cards accepted.
+          🔒 {configStatus === 'simulation' 
+            ? 'Demo Mode: No actual payment will be processed' 
+            : 'Secure payment powered by Paystack. All major cards accepted.'}
         </p>
       </div>
     </div>
@@ -282,6 +314,20 @@ const styles = {
     fontSize: '1.2rem',
     margin: 0,
     color: '#333'
+  },
+  warning: {
+    backgroundColor: '#fff3cd',
+    color: '#856404',
+    padding: '15px',
+    margin: '20px',
+    borderRadius: '8px',
+    textAlign: 'center',
+    border: '1px solid #ffeeba'
+  },
+  warningNote: {
+    fontSize: '0.9rem',
+    marginTop: '8px',
+    color: '#666'
   },
   loadingPaystack: {
     textAlign: 'center',
@@ -339,6 +385,12 @@ const styles = {
     color: '#666',
     fontSize: '0.9rem',
     marginTop: '10px'
+  },
+  simulationNote: {
+    color: '#FF6347',
+    fontSize: '0.9rem',
+    marginTop: '10px',
+    fontStyle: 'italic'
   },
   plansContainer: {
     padding: '20px',

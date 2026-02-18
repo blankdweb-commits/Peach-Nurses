@@ -549,22 +549,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div style={styles.actions}>
-        <button 
-          onClick={() => handleManualSwipe('left')}
-          style={styles.nopeButton}
-        >
-          ✖
-        </button>
-        <button 
-          onClick={() => handleManualSwipe('right')}
-          style={styles.ripenButton}
-        >
-          🍑
-        </button>
-      </div>
-
+      
       {/* Bottom Navigation */}
       <div style={styles.bottomNav}>
         <div style={{...styles.navItem, ...styles.navItemActive}}>
