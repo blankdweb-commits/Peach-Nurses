@@ -4,7 +4,6 @@ import { useUser } from '../context/UserContext';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorDisplay from './ErrorDisplay';
 import { getErrorMessage } from '../utils/errorHandler';
-
 const Onboarding = () => {
   const { currentUser, updateUserProfile, setOnboardingComplete } = useUser();
   const [currentStep, setCurrentStep] = useState(1);
