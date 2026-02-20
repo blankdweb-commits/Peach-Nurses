@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { adsService } from '../services/supabaseService';
 import LoadingSpinner from './LoadingSpinner';
 
-const AdBanner = ({ onAdComplete, position = 'interstitial' }) => {
+const AdBanner = ({ onAdComplete }) => { // Removed unused 'position' prop
   const [ad, setAd] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

@@ -141,6 +141,7 @@ const MOCK_USERS = [
 ];
 
 const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }) => {
+  // Remove unused 'updateUserProfile' from destructuring
   const { userProfile, subscription, ripenMatch, incrementAdsSeen, matches, setMatches } = useUser();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [notification, setNotification] = useState(null);
@@ -157,6 +158,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
   const [ripenHistory, setRipenHistory] = useState([]);
   const [hasFetched, setHasFetched] = useState(false);
   const cardRef = useRef(null);
+  // Remove unused 'ripenCount' state
 
   // Fetch user's current location
   useEffect(() => {
@@ -356,7 +358,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     } finally {
       setLoading(false);
     }
-  }, [userProfile, userLocation, calculateCompatibility, ripenHistory, hasFetched, MOCK_USERS]);
+  }, [userProfile, userLocation, calculateCompatibility, ripenHistory, hasFetched, MOCK_USERS]); // Added MOCK_USERS to dependencies
 
   // Load matches when component mounts
   useEffect(() => {
