@@ -1,9 +1,8 @@
 import React, { useEffect } from 'react';
-import { useUser } from '../context/UserContext';
 
 const AdBanner = ({ onAdComplete }) => {
   // Use last posted ad from business logic or random mock ad
-  const { business } = useUser();
+  // const { business } = useUser();
 
   // Logic to pick an ad:
   // In a real app, this would fetch from an ad server.

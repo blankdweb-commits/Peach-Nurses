@@ -6,7 +6,7 @@ import FeedbackHandler from './FeedbackHandler';
 import KYCVerification from './KYCVerification';
 
 const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
-  const { userProfile, updateUserProfile, subscription, business, createBusinessAccount, postAd, setOnboardingComplete, submitFeedback, logoutUser, kycStatus } = useUser();
+  const { currentUser, userProfile, updateUserProfile, subscription, business, createBusinessAccount, postAd, setOnboardingComplete, submitFeedback, logoutUser, kycStatus } = useUser();
   const [activeTab, setActiveTab] = useState('profile');
   const [adForm, setAdForm] = useState({
     title: '',
@@ -150,10 +150,10 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
           </div>
 
           <div style={styles.readOnlySection}>
-            <label style={styles.label}>Name (Read-only)</label>
-            <input style={styles.disabledInput} value={userProfile.name} disabled />
+            <label style={styles.label}>Username (Read-only)</label>
+            <input style={styles.disabledInput} value={userProfile.username || 'Anonymous'} disabled />
             <label style={styles.label}>Email (Read-only)</label>
-            <input style={styles.disabledInput} value={userProfile.email} disabled />
+            <input style={styles.disabledInput} value={currentUser?.email || 'No email provided'} disabled />
           </div>
 
           <label style={styles.label}>Alias</label>
@@ -275,6 +275,14 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
                 >
                   💬 Send Feedback / Report Bug
                 </button>
+                {subscription.isPremium && (
+                  <button
+                    onClick={() => alert("Connecting to Priority Support...")}
+                    style={{ ...styles.helpButton, color: '#FF6347', fontWeight: 'bold' }}
+                  >
+                    ⚡ Priority Support (Premium)
+                  </button>
+                )}
                 <button
                   onClick={onNavigateToAdmin}
                   style={styles.helpButton}

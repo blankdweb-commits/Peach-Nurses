@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useUser } from '../context/UserContext';
 import { wingmanService } from '../services/wingmanService';
-import { mockBackend } from '../services/mockBackend';
 
 const Chat = ({ matchId, onBack }) => {
-  const { chats, sendMessage, userProfile, potentialMatches, subscription } = useUser();
+  const { chats, sendMessage, userProfile, matches, subscription } = useUser();
   const [inputText, setInputText] = useState('');
   const [wingmanSuggestion, setWingmanSuggestion] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  const match = potentialMatches.find(u => u.id === matchId);
+  const matchRecord = matches.find(m => m.id === matchId);
+  const match = matchRecord?.matchedUser;
   
   // Fix: Use useMemo to prevent useEffect dependency warning
   const messages = useMemo(() => {
@@ -93,15 +93,15 @@ const Chat = ({ matchId, onBack }) => {
         
         <div style={styles.headerContent}>
           <img
-            src={match.photoUrl}
-            alt={match.realName}
+            src={match.photo_url || match.photoUrl}
+            alt={match.alias || match.realName}
             style={styles.avatar}
             onError={(e) => {
               e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="22" fill="%23FF6347"/><text x="22" y="28" font-size="18" text-anchor="middle" fill="white">🍑</text></svg>';
             }}
           />
           <div style={styles.headerInfo}>
-            <div style={styles.name}>{match.realName}</div>
+            <div style={styles.name}>{match.alias || match.realName}</div>
             <div style={styles.status}>
               <span style={styles.statusDot}></span>
               Online
@@ -114,15 +114,10 @@ const Chat = ({ matchId, onBack }) => {
         {messages.length === 0 && (
           <div style={styles.welcomeMessage}>
             <div style={styles.welcomeIcon}>👋</div>
-            <h3 style={styles.welcomeTitle}>Say hello to {match.realName}!</h3>
+            <h3 style={styles.welcomeTitle}>Say hello to {match.alias || match.realName}!</h3>
             <p style={styles.welcomeText}>
-              You matched because you both like <strong>{match.basics.fun[0] || 'similar things'}</strong>.
+              Start a conversation and get to know each other.
             </p>
-            {match.basics.fun[1] && (
-              <p style={styles.welcomeSubtext}>
-                You also share interest in {match.basics.fun[1]}!
-              </p>
-            )}
           </div>
         )}
 

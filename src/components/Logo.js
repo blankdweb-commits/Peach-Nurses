@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Logo: React.FC = () => {
+const Logo = () => {
   return (
     <div className="text-center mb-8">
       <span className="text-6xl mb-4 block">🍑</span>

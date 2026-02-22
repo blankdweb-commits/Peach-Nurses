@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAdmin } from '../context/AdminContext';
 import { useUser } from '../context/UserContext';
 
 const AdminDashboard = ({ onBack }) => {
   const { isAdmin, loginAdmin, logoutAdmin, deleteUser, banUser } = useAdmin();
-  const { potentialMatches, subscription, grantPremium, revokePremium } = useUser();
+  const { potentialMatches, subscription, grantPremium, revokePremium, fetchAllProfiles } = useUser();
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchAllProfiles();
+    }
+  }, [isAdmin, fetchAllProfiles]);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
@@ -94,7 +100,7 @@ const AdminDashboard = ({ onBack }) => {
               <tr key={user.id} style={{ borderBottom: '1px solid #ddd' }}>
                 <td style={{ padding: '10px' }}>
                   <div><strong>{user.alias}</strong></div>
-                  <div style={{ fontSize: '0.8rem', color: '#666' }}>{user.realName}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#666' }}>{user.real_name || user.realName}</div>
                 </td>
                 <td style={{ padding: '10px' }}>
                   {user.banned ? <span style={{ color: 'red', fontWeight: 'bold' }}>BANNED</span> : <span style={{ color: 'green' }}>Active</span>}

@@ -1,7 +1,8 @@
 // src/context/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../services/supabase';
 
-const UserContext = createContext();
+export const UserContext = createContext();
 
 export const useUser = () => {
   const context = useContext(UserContext);
@@ -26,34 +27,165 @@ export const UserProvider = ({ children }) => {
   const [adsSeen, setAdsSeen] = useState(0);
   const [ripenedUsers, setRipenedUsers] = useState([]);
   const [matches, setMatches] = useState([]);
+  const [chats, setChats] = useState({});
+  const [kycStatus, setKycStatus] = useState('not_verified');
+  const [business, setBusiness] = useState({ isBusiness: false, ads: [] });
+  const [potentialMatches, setPotentialMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load user data from localStorage
+  // Load user session from Supabase
   useEffect(() => {
-    const loadUserData = () => {
-      try {
-        const savedUser = localStorage.getItem('currentUser');
-        const savedProfile = localStorage.getItem('userProfile');
-        const savedOnboarding = localStorage.getItem('onboardingComplete');
-        const savedSubscription = localStorage.getItem('subscription');
-        const savedRipenedUsers = localStorage.getItem('ripenedUsers');
-        const savedMatches = localStorage.getItem('matches');
-
-        if (savedUser) setCurrentUser(JSON.parse(savedUser));
-        if (savedProfile) setUserProfile(JSON.parse(savedProfile));
-        if (savedOnboarding) setOnboardingComplete(JSON.parse(savedOnboarding));
-        if (savedSubscription) setSubscription(JSON.parse(savedSubscription));
-        if (savedRipenedUsers) setRipenedUsers(JSON.parse(savedRipenedUsers));
-        if (savedMatches) setMatches(JSON.parse(savedMatches));
-      } catch (error) {
-        console.error('Error loading user data:', error);
-      } finally {
-        setLoading(false);
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setCurrentUser(session.user);
+        await fetchUserProfile(session.user.id);
       }
+      setLoading(false);
     };
 
-    loadUserData();
-  }, []);
+    getSession();
+
+    const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session) {
+          setCurrentUser(session.user);
+          await fetchUserProfile(session.user.id);
+        } else {
+          setCurrentUser(null);
+          setUserProfile(null);
+        }
+      }
+    );
+
+    return () => {
+      authListener.unsubscribe();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchUserProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (data) {
+        setUserProfile(data);
+        setOnboardingComplete(data.onboarding_complete);
+        setSubscription({
+          isPremium: data.is_premium,
+          dailyUnripes: data.daily_unripes,
+          dailyLimit: data.is_premium ? 999 : 25,
+          plan: data.is_premium ? 'premium' : 'free',
+          expiresAt: data.expires_at,
+          paymentHistory: data.payment_history || []
+        });
+        setKycStatus(data.kyc_status || 'not_verified');
+        setBusiness({
+          isBusiness: data.is_business || false,
+          ads: data.ads || []
+        });
+
+        // Fetch additional data
+        await fetchUserMatches(userId);
+        await fetchUserRipened(userId);
+      } else if (error && error.code === 'PGRST116') {
+        // Profile doesn't exist yet, probably new signup
+        console.log('Profile not found, user might need onboarding');
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
+  const fetchUserMatches = async (userId) => {
+    const { data } = await supabase
+      .from('matches')
+      .select('*, profiles!matches_user_id_2_fkey(*)')
+      .eq('user_id_1', userId);
+
+    // Also fetch where user is user_id_2
+    const { data: data2 } = await supabase
+      .from('matches')
+      .select('*, profiles!matches_user_id_1_fkey(*)')
+      .eq('user_id_2', userId);
+
+    if (data || data2) {
+      const allMatches = [
+        ...(data || []).map(m => ({ ...m, matchedUser: m.profiles })),
+        ...(data2 || []).map(m => ({ ...m, matchedUser: m.profiles }))
+      ];
+      setMatches(allMatches);
+
+      // Setup real-time for each match chat
+      allMatches.forEach(match => {
+        subscribeToChat(match.id);
+        fetchMessages(match.id);
+      });
+    }
+  };
+
+  const fetchUserRipened = async (userId) => {
+    const { data } = await supabase
+      .from('ripened_users')
+      .select('target_user_id')
+      .eq('user_id', userId);
+
+    if (data) {
+      setRipenedUsers(data.map(r => r.target_user_id));
+    }
+  };
+
+  const fetchMessages = async (matchId) => {
+    const { data } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('match_id', matchId)
+      .order('created_at', { ascending: true });
+
+    if (data) {
+      setChats(prev => ({
+        ...prev,
+        [matchId]: data.map(m => ({
+          id: m.id,
+          text: m.content,
+          sender: m.sender_id === currentUser.id ? 'me' : 'them',
+          timestamp: m.created_at,
+          read: m.read
+        }))
+      }));
+    }
+  };
+
+  const subscribeToChat = (matchId) => {
+    supabase
+      .channel(`chat:${matchId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `match_id=eq.${matchId}`
+      }, payload => {
+        const newMessage = payload.new;
+        setChats(prev => {
+          const matchChats = prev[matchId] || [];
+          if (matchChats.find(m => m.id === newMessage.id)) return prev;
+          return {
+            ...prev,
+            [matchId]: [...matchChats, {
+              id: newMessage.id,
+              text: newMessage.content,
+              sender: newMessage.sender_id === currentUser.id ? 'me' : 'them',
+              timestamp: newMessage.created_at,
+              read: newMessage.read
+            }]
+          };
+        });
+      })
+      .subscribe();
+  };
 
   // Check subscription expiry
   useEffect(() => {
@@ -69,65 +201,120 @@ export const UserProvider = ({ children }) => {
     }
   }, [subscription.expiresAt]);
 
-  const login = (userData) => {
-    setCurrentUser(userData);
-    localStorage.setItem('currentUser', JSON.stringify(userData));
+  const loginUser = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    return data.user;
   };
 
-  const logout = () => {
+  const signupUser = async (email, password) => {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
+
+    if (data.user) {
+      // Create a default profile if not handled by trigger
+      await supabase.from('profiles').insert({
+        id: data.user.id,
+        email: email,
+        is_premium: false,
+        daily_unripes: 25,
+        onboarding_complete: false
+      });
+    }
+
+    return data.user;
+  };
+
+  const logoutUser = async () => {
+    await supabase.auth.signOut();
     setCurrentUser(null);
     setUserProfile(null);
-    setOnboardingComplete(false);
-    setSubscription({
-      isPremium: false,
-      dailyUnripes: 25,
-      dailyLimit: 25,
-      plan: 'free',
-      expiresAt: null,
-      paymentHistory: []
-    });
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('userProfile');
-    localStorage.removeItem('onboardingComplete');
-    localStorage.removeItem('subscription');
+    setMatches([]);
+    setChats({});
+    setRipenedUsers([]);
   };
 
-  const updateUserProfile = (profileData) => {
-    const updatedProfile = { ...userProfile, ...profileData };
-    setUserProfile(updatedProfile);
-    localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
-    return updatedProfile;
+  const updateUserProfile = async (profileData) => {
+    if (!currentUser) return;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: currentUser.id,
+        ...profileData,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    setUserProfile(data);
+    return data;
   };
 
-  const completeOnboarding = () => {
+  const completeOnboarding = async () => {
+    await updateUserProfile({ onboarding_complete: true });
     setOnboardingComplete(true);
-    localStorage.setItem('onboardingComplete', JSON.stringify(true));
+  };
+
+  const updateKYC = async (status) => {
+    await updateUserProfile({ kyc_status: status });
+    setKycStatus(status);
+  };
+
+  const createBusinessAccount = async () => {
+    if (!subscription.isPremium) return false;
+    await updateUserProfile({ is_business: true });
+    setBusiness(prev => ({ ...prev, isBusiness: true }));
+    return true;
+  };
+
+  const postAd = async (adData, reference) => {
+    // In real app, verify payment reference first
+    const newAds = [...business.ads, { ...adData, id: Date.now(), reference }];
+    await updateUserProfile({ ads: newAds });
+    setBusiness(prev => ({ ...prev, ads: newAds }));
+    return true;
+  };
+
+  const submitFeedback = async (feedback) => {
+    console.log("Feedback submitted:", feedback);
+    // In real app, save to Supabase 'feedback' table
+    return true;
   };
 
   // Upgrade to premium
   const upgradeToPremium = async (paymentDetails) => {
     try {
-      const newSubscription = {
+      const history = [...(subscription.paymentHistory || []), {
+        ...paymentDetails,
+        date: new Date().toISOString()
+      }];
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          is_premium: true,
+          daily_unripes: 999,
+          expires_at: paymentDetails.expiresAt,
+          payment_history: history,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setUserProfile(data);
+      setSubscription({
         isPremium: true,
         dailyUnripes: 999,
         dailyLimit: 999,
         plan: 'premium',
-        paymentMethod: paymentDetails.paymentMethod,
-        reference: paymentDetails.reference,
-        amount: paymentDetails.amount,
-        upgradedAt: new Date().toISOString(),
-        expiresAt: paymentDetails.expiresAt,
-        paymentHistory: [
-          ...subscription.paymentHistory,
-          {
-            ...paymentDetails,
-            date: new Date().toISOString()
-          }
-        ]
-      };
-
-      setSubscription(newSubscription);
-      localStorage.setItem('subscription', JSON.stringify(newSubscription));
+        expiresAt: data.expires_at,
+        paymentHistory: data.payment_history
+      });
       
       return true;
     } catch (error) {
@@ -137,86 +324,153 @@ export const UserProvider = ({ children }) => {
   };
 
   // Cancel premium subscription
-  const cancelPremium = () => {
-    const updatedSubscription = {
-      ...subscription,
-      isPremium: false,
-      plan: 'free',
-      dailyLimit: 25,
-      dailyUnripes: 25
-    };
-    
-    setSubscription(updatedSubscription);
-    localStorage.setItem('subscription', JSON.stringify(updatedSubscription));
+  const cancelPremium = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          is_premium: false,
+          daily_unripes: 25,
+          expires_at: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setUserProfile(data);
+      setSubscription({
+        isPremium: false,
+        dailyUnripes: 25,
+        dailyLimit: 25,
+        plan: 'free',
+        expiresAt: null,
+        paymentHistory: data.payment_history
+      });
+    } catch (error) {
+      console.error('Error cancelling premium:', error);
+    }
   };
 
   const ripenMatch = async (targetUserId) => {
-    // Check daily limit
-    const today = new Date().toISOString().split('T')[0];
-    const dailyRipens = JSON.parse(localStorage.getItem('dailyRipens') || '[]');
-    const todayRipens = dailyRipens.filter(date => date === today);
-    
-    const dailyLimit = subscription.isPremium ? 999 : 25;
-    if (todayRipens.length >= dailyLimit) {
-      return false;
-    }
+    if (!currentUser) return false;
 
-    if (ripenedUsers.includes(targetUserId)) {
-      return false;
-    }
+    // Check daily limit
+    const dailyLimit = subscription.isPremium ? 999 : 25;
+    const { count } = await supabase
+      .from('ripened_users')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id)
+      .gte('created_at', new Date().toISOString().split('T')[0]);
+
+    if (count >= dailyLimit) return false;
 
     // Save ripened user
-    const newRipenedUsers = [...ripenedUsers, targetUserId];
-    setRipenedUsers(newRipenedUsers);
-    localStorage.setItem('ripenedUsers', JSON.stringify(newRipenedUsers));
-    
-    // Save daily count
-    dailyRipens.push(today);
-    localStorage.setItem('dailyRipens', JSON.stringify(dailyRipens));
+    const { error } = await supabase
+      .from('ripened_users')
+      .insert({
+        user_id: currentUser.id,
+        target_user_id: targetUserId
+      });
 
-    // Update daily unripes counter
-    if (!subscription.isPremium) {
-      const remaining = Math.max(0, dailyLimit - (todayRipens.length + 1));
-      setSubscription(prev => ({ 
-        ...prev, 
-        dailyUnripes: remaining 
-      }));
-    }
+    if (error) return false;
 
-    // Check for mutual match (30% chance)
-    const mutualMatch = Math.random() > 0.7;
-    
-    if (mutualMatch) {
-      // Get match details from potential matches (you'll need to pass this)
-      const matchUser = JSON.parse(localStorage.getItem('potentialMatches') || '[]')
-        .find(u => u.id === targetUserId);
+    setRipenedUsers(prev => [...prev, targetUserId]);
+
+    // Check for mutual match
+    const { data: mutual } = await supabase
+      .from('ripened_users')
+      .select('*')
+      .eq('user_id', targetUserId)
+      .eq('target_user_id', currentUser.id)
+      .single();
+
+    if (mutual) {
+      const { data: match } = await supabase
+        .from('matches')
+        .insert({
+          user_id_1: currentUser.id,
+          user_id_2: targetUserId
+        })
+        .select()
+        .single();
       
-      if (matchUser) {
-        const newMatch = {
-          id: targetUserId,
-          userId: targetUserId,
-          alias: matchUser.alias,
-          photoUrl: matchUser.photoUrl,
-          matchedAt: new Date().toISOString(),
-          lastMessage: null,
-          lastMessageTime: null
-        };
-        const updatedMatches = [...matches, newMatch];
-        setMatches(updatedMatches);
-        localStorage.setItem('matches', JSON.stringify(updatedMatches));
+      if (match) {
+        await fetchUserMatches(currentUser.id);
+        return 'match';
       }
     }
 
     return true;
   };
 
+  const sendMessage = async (matchId, text) => {
+    if (!currentUser) return;
+
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        match_id: matchId,
+        sender_id: currentUser.id,
+        content: text
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  };
+
   const isRipped = (userId) => {
     return ripenedUsers.includes(userId);
   };
 
-  const incrementAdsSeen = () => {
+  const incrementAdsSeen = async () => {
     setAdsSeen(prev => prev + 1);
-    localStorage.setItem('adsSeen', JSON.stringify(adsSeen + 1));
+    if (currentUser) {
+      await supabase
+        .from('profiles')
+        .update({ ads_seen: adsSeen + 1 })
+        .eq('id', currentUser.id);
+    }
+  };
+
+  const grantPremium = async (userId) => {
+    if (userId === 'current_user' || (currentUser && userId === currentUser.id)) {
+      await upgradeToPremium({
+        paymentMethod: 'admin_grant',
+        reference: 'admin_' + Date.now(),
+        amount: 0,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year
+      });
+    }
+  };
+
+  const revokePremium = async (userId) => {
+    if (userId === 'current_user' || (currentUser && userId === currentUser.id)) {
+      await cancelPremium();
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    const { error } = await supabase.from('profiles').delete().eq('id', userId);
+    if (!error) setPotentialMatches(prev => prev.filter(u => u.id !== userId));
+    return !error;
+  };
+
+  const banUser = async (userId) => {
+    const { error } = await supabase.from('profiles').update({ banned: true }).eq('id', userId);
+    if (!error) setPotentialMatches(prev => prev.map(u => u.id === userId ? { ...u, banned: true } : u));
+    return !error;
+  };
+
+  const fetchAllProfiles = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*');
+    if (data) setPotentialMatches(data);
   };
 
   const value = {
@@ -226,18 +480,34 @@ export const UserProvider = ({ children }) => {
     subscription,
     adsSeen,
     ripenedUsers,
+    rippedMatches: ripenedUsers, // Alias for ChatList.js
     matches,
+    chats,
     loading,
-    login,
-    logout,
+    loginUser,
+    signupUser,
+    logoutUser,
     updateUserProfile,
     setOnboardingComplete: completeOnboarding,
     upgradeToPremium,
     cancelPremium,
+    grantPremium,
+    revokePremium,
+    deleteUser,
+    banUser,
+    kycStatus,
+    updateKYC,
+    business,
+    createBusinessAccount,
+    postAd,
+    submitFeedback,
     ripenMatch,
+    sendMessage,
     isRipped,
     incrementAdsSeen,
-    potentialMatches: []
+    potentialMatches,
+    setPotentialMatches,
+    fetchAllProfiles
   };
 
   return (

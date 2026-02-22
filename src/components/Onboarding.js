@@ -93,24 +93,37 @@ const Onboarding = () => {
     });
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < 4) {
       setCurrentStep(prev => prev + 1);
     } else {
       // FIXED: Save all profile data and complete onboarding
       const completeProfile = {
         ...formData,
-        id: `user_${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        photoUrl: `https://picsum.photos/400/600?random=${Math.random()}`,
-        distance: 0
+        photo_url: `https://picsum.photos/400/600?random=${Math.random()}`,
+        basics: {
+          fun: formData.fun,
+          media: formData.media
+        },
+        relationships: {
+          values: formData.values,
+          lookingFor: formData.lookingFor
+        },
+        life: {
+          based: formData.based,
+          upbringing: formData.upbringing
+        }
       };
       
-      // Save to context
-      updateUserProfile(completeProfile);
-      
-      // Mark onboarding as complete - this will trigger navigation to Discover
-      setOnboardingComplete();
+      try {
+        // Save to context
+        await updateUserProfile(completeProfile);
+
+        // Mark onboarding as complete - this will trigger navigation to Discover
+        await setOnboardingComplete();
+      } catch (error) {
+        alert("Error saving profile: " + error.message);
+      }
     }
   };
 

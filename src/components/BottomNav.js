@@ -5,6 +5,7 @@ const BottomNav = ({ currentView, onChangeView }) => {
   const navItems = [
     { id: 'discover', icon: '🍑', label: 'Discover' },
     { id: 'chatList', icon: '💬', label: 'Chats' },
+    { id: 'likes', icon: '❤️', label: 'Likes' },
     { id: 'membership', icon: '👑', label: 'Premium' },
     { id: 'settings', icon: '⚙️', label: 'Settings' }
   ];

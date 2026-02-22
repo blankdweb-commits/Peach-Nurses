@@ -2,7 +2,7 @@
 
 // Paystack configuration
 export const PAYSTACK_CONFIG = {
-  publicKey: 'pk_test_xxxxxxxxxxxxxxxxxxxxx', // Replace with your Paystack public key
+  publicKey: process.env.REACT_APP_PAYSTACK_PUBLIC_KEY,
   currency: 'NGN',
   plans: {
     premium: {
@@ -41,10 +41,26 @@ export const initializePayment = ({ email, amount, metadata = {} }) => {
 
 // Verify payment (backend implementation)
 export const verifyPayment = async (reference) => {
-  // This should be implemented on your backend
-  // For demo purposes, we'll simulate verification
+  const verifyUrl = process.env.REACT_APP_VERIFY_PAYMENT_URL;
+
+  if (verifyUrl) {
+    try {
+      const response = await fetch(`${verifyUrl}?reference=${reference}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Payment verification failed:', error);
+      throw error;
+    }
+  }
+
+  // Fallback for development/demo
   try {
-    // Simulate API call to your backend
     const response = await new Promise((resolve) => {
       setTimeout(() => {
         resolve({

@@ -1,27 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSwipeable } from 'react-swipeable';
 import { useUser } from '../context/UserContext';
+import { supabase } from '../services/supabase';
 import AdBanner from './AdBanner';
 
-const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }) => {
-  const { userProfile, incrementAdsSeen, subscription, updateUserProfile } = useUser();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [notification, setNotification] = useState(null);
-  const [actionsSinceAd, setActionsSinceAd] = useState(0);
-  const [showAd, setShowAd] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [rotateAngle, setRotateAngle] = useState(0);
-  const [showInstructions, setShowInstructions] = useState(false);
-  const [potentialMatches, setPotentialMatches] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [ripenCount, setRipenCount] = useState(0);
-  const [userLocation, setUserLocation] = useState(null);
-  const cardRef = useRef(null);
-
-  // Mock user data for testing
-  const MOCK_USERS = [
+// Mock user data for testing - kept as fallback
+const MOCK_USERS = [
     {
       id: '1',
       alias: "Nurse_Peachy99",
@@ -154,13 +138,25 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     }
   ];
 
+const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }) => {
+  const { userProfile, incrementAdsSeen, subscription, ripenMatch } = useUser();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [notification, setNotification] = useState(null);
+  const [actionsSinceAd, setActionsSinceAd] = useState(0);
+  const [showAd, setShowAd] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [rotateAngle, setRotateAngle] = useState(0);
+  const [showInstructions, setShowInstructions] = useState(false);
+  const [potentialMatches, setPotentialMatches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const cardRef = useRef(null);
+
   // Use actual userProfile from context
   const currentUser = userProfile;
 
-  // Debug: Log current user profile
-  useEffect(() => {
-    console.log('Current User Profile:', currentUser);
-  }, [currentUser]);
 
   // Fetch user's current location
   useEffect(() => {
@@ -219,30 +215,46 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     setError(null);
     
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Fetch from Supabase profiles
+      let { data: profiles, error: fetchError } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('id', currentUser?.id);
+
+      if (fetchError) throw fetchError;
+
+      // Filter out already ripened users
+      const ripenedUsers = JSON.parse(localStorage.getItem('ripenedUsers') || '[]');
+      let filteredMatches = profiles.filter(user => !ripenedUsers.includes(user.id));
       
-      // Filter out current user
-      const filteredMatches = MOCK_USERS.filter(user => 
-        currentUser && user.id !== currentUser.id
-      );
+      // If no matches from DB, fallback to MOCK_USERS for demo/production mood if DB is empty
+      if (filteredMatches.length === 0 && profiles.length === 0) {
+        filteredMatches = MOCK_USERS.filter(user =>
+          currentUser && user.id !== currentUser.id && !ripenedUsers.includes(user.id)
+        );
+      }
       
       // Calculate distances and enrich matches
       const enrichedMatches = filteredMatches.map(match => {
         let distance = null;
         
         if (userLocation) {
-          // Generate random distances for mock data
+          // Generate random distances for mock data if not provided by DB
           const baseDistance = Math.random() * 50 + 1; // 1-51 km
-          distance = Math.round(baseDistance * 10) / 10;
+          distance = match.distance || Math.round(baseDistance * 10) / 10;
         }
         
         return {
           ...match,
+          id: match.id,
+          alias: match.alias || "Anonymous",
+          level: match.level || "New Member",
+          photoUrl: match.photo_url || match.photoUrl || "https://picsum.photos/400/600",
           distance,
           basics: match.basics || { fun: [], media: [] },
           relationships: match.relationships || { values: [], lookingFor: '' },
-          life: match.life || { based: 'Delta' }
+          life: match.life || { based: 'Delta' },
+          special: match.special || "Hi there!"
         };
       });
 
@@ -253,11 +265,14 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
         return scoreB - scoreA;
       });
 
-      console.log('Loaded matches:', sortedMatches.length);
       setPotentialMatches(sortedMatches);
     } catch (err) {
       console.error('Error fetching matches:', err);
-      setError('Failed to load potential matches');
+      // Fallback to mock data on error for better UX in prototype
+      const filteredMatches = MOCK_USERS.filter(user =>
+        currentUser && user.id !== currentUser.id
+      );
+      setPotentialMatches(filteredMatches);
     } finally {
       setLoading(false);
     }
@@ -310,43 +325,15 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     delta: 10,
   });
 
-  const handleRipenMatch = async (targetUserId) => {
+  const handleRipenMatchAction = async (targetUserId) => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const result = await ripenMatch(targetUserId);
       
-      const ripenedUsers = JSON.parse(localStorage.getItem('ripenedUsers') || '[]');
-      if (ripenedUsers.includes(targetUserId)) {
+      if (!result) {
         return false;
       }
 
-      const today = new Date().toISOString().split('T')[0];
-      const dailyRipens = JSON.parse(localStorage.getItem('dailyRipens') || '[]');
-      const todayRipens = dailyRipens.filter(date => date === today);
-      
-      const dailyLimit = subscription?.isPremium ? 999 : 25;
-      if (todayRipens.length >= dailyLimit) {
-        return false;
-      }
-
-      ripenedUsers.push(targetUserId);
-      localStorage.setItem('ripenedUsers', JSON.stringify(ripenedUsers));
-      
-      dailyRipens.push(today);
-      localStorage.setItem('dailyRipens', JSON.stringify(dailyRipens));
-
-      setRipenCount(prev => prev + 1);
-      
-      const mutualMatch = Math.random() > 0.7;
-      
-      if (mutualMatch && currentMatch) {
-        const matches = JSON.parse(localStorage.getItem('matches') || '[]');
-        matches.push({
-          userId: targetUserId,
-          alias: currentMatch.alias,
-          matchedAt: new Date().toISOString()
-        });
-        localStorage.setItem('matches', JSON.stringify(matches));
-        
+      if (result === 'match') {
         setNotification(`🎉 It's a match with ${currentMatch.alias}!`);
         setTimeout(() => setNotification(null), 3000);
       }
@@ -369,7 +356,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
     }
 
     if (direction === 'right' && currentMatch) {
-      const success = await handleRipenMatch(currentMatch.id);
+      const success = await handleRipenMatchAction(currentMatch.id);
       if (!success) {
         alert("Daily Limit Reached! Upgrade to Premium to continue ripening.");
         if (onNavigateToStore) onNavigateToStore();
