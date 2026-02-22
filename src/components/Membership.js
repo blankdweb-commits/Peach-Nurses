@@ -77,9 +77,10 @@ const Membership = ({ onBack }) => {
           You now have unlimited access to ripen matches and exclusive features.
         </p>
         <div style={styles.benefitsList}>
-          <div style={styles.benefitItem}>✓ Unlimited daily ripens</div>
+          <div style={styles.benefitItem}>✓ Unlimited daily ripens (999/day)</div>
+          <div style={styles.benefitItem}>✓ No ads in your feed</div>
           <div style={styles.benefitItem}>✓ See who likes you</div>
-          <div style={styles.benefitItem}>✓ No ads in feed</div>
+          <div style={styles.benefitItem}>✓ Wingman AI Assistant</div>
           <div style={styles.benefitItem}>✓ Priority support</div>
         </div>
         <button
@@ -126,9 +127,10 @@ const Membership = ({ onBack }) => {
           <h3 style={styles.planTitle}>Peach Premium 👑</h3>
           <p style={styles.price}>₦2,500 <span style={styles.monthly}>/ month</span></p>
           <ul style={styles.featuresList}>
-            <li style={styles.featureItem}>✅ <strong>Unlimited Unripes</strong></li>
+            <li style={styles.featureItem}>✅ <strong>Unlimited daily ripens (999/day)</strong></li>
+            <li style={styles.featureItem}>✅ No ads in your feed</li>
             <li style={styles.featureItem}>✅ See who likes you</li>
-            <li style={styles.featureItem}>✅ No Ads in feed</li>
+            <li style={styles.featureItem}>✅ Wingman AI Assistant</li>
             <li style={styles.featureItem}>✅ Priority support</li>
           </ul>
 
@@ -186,6 +188,11 @@ const Membership = ({ onBack }) => {
             <div style={styles.comparisonIcon}>🚫</div>
             <h4>No Ads</h4>
             <p>Enjoy an uninterrupted experience</p>
+          </div>
+          <div style={styles.comparisonCard}>
+            <div style={styles.comparisonIcon}>🦜</div>
+            <h4>Wingman AI</h4>
+            <p>Get AI-powered conversation help</p>
           </div>
           <div style={styles.comparisonCard}>
             <div style={styles.comparisonIcon}>⚡</div>

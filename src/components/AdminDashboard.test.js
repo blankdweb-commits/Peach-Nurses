@@ -5,8 +5,9 @@ import { AdminContext } from '../context/AdminContext';
 import { UserContext } from '../context/UserContext';
 
 const renderAdmin = (ui, { isAdmin, loginAdmin, logoutAdmin, deleteUser, banUser, subscription, potentialMatches }) => {
+  const fetchAllProfiles = jest.fn();
   return render(
-    <UserContext.Provider value={{ subscription, potentialMatches }}>
+    <UserContext.Provider value={{ subscription, potentialMatches, fetchAllProfiles }}>
       <AdminContext.Provider value={{ isAdmin, loginAdmin, logoutAdmin, deleteUser, banUser }}>
         {ui}
       </AdminContext.Provider>

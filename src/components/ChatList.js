@@ -2,15 +2,9 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUser } from '../context/UserContext';
 
 const ChatList = ({ onSelectChat }) => {
-  const { rippedMatches, potentialMatches, chats } = useUser();
+  const { matches, chats } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
   const [touchTimeout, setTouchTimeout] = useState(null);
-
-  // Filter potential matches to find only those who are ripped - useMemo to prevent recalculations
-  const matches = useMemo(() => 
-    potentialMatches.filter(user => rippedMatches.includes(user.id)), 
-    [potentialMatches, rippedMatches]
-  );
 
   // Filter matches based on search query - useMemo to prevent recalculations
   const filteredMatches = useMemo(() => {
@@ -18,13 +12,16 @@ const ChatList = ({ onSelectChat }) => {
       return matches;
     } else {
       const query = searchQuery.toLowerCase();
-      return matches.filter(match =>
-        match.realName?.toLowerCase().includes(query) ||
-        match.alias?.toLowerCase().includes(query) ||
-        (chats[match.id]?.some(msg => 
-          msg.text?.toLowerCase().includes(query)
-        ))
-      );
+      return matches.filter(match => {
+        const user = match.matchedUser;
+        return (
+          user.real_name?.toLowerCase().includes(query) ||
+          user.alias?.toLowerCase().includes(query) ||
+          (chats[match.id]?.some(msg =>
+            msg.text?.toLowerCase().includes(query)
+          ))
+        );
+      });
     }
   }, [searchQuery, matches, chats]);
 
@@ -247,13 +244,14 @@ const ChatList = ({ onSelectChat }) => {
         ) : (
           <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
             {(searchQuery ? filteredMatches : matches).map(match => {
+              const user = match.matchedUser;
               const lastMessage = chats[match.id] && chats[match.id].length > 0
                 ? chats[match.id][chats[match.id].length - 1].text
                 : "Say hello! 👋";
               
               const lastMessageTime = getLastMessageTime(match.id);
               const unreadCount = getUnreadCount(match.id);
-              const isOnline = match.isOnline || false;
+              const isOnline = user.is_online || false;
 
               return (
                 <li
@@ -286,8 +284,8 @@ const ChatList = ({ onSelectChat }) => {
                   {/* Avatar with Online Indicator */}
                   <div style={{ position: 'relative', flexShrink: 0 }}>
                     <img
-                      src={match.photoUrl}
-                      alt={match.alias || 'User'}
+                      src={user.photo_url || user.photoUrl}
+                      alt={user.alias || 'User'}
                       style={{
                         inlineSize: '56px',
                         blockSize: '56px',
@@ -331,7 +329,7 @@ const ChatList = ({ onSelectChat }) => {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
                       }}>
-                        {match.realName || 'Anonymous'}
+                        {user.alias || user.real_name || 'Anonymous'}
                       </span>
                       <div style={{
                         display: 'flex',
@@ -339,7 +337,7 @@ const ChatList = ({ onSelectChat }) => {
                         gap: '6px',
                         flexShrink: 0
                       }}>
-                        {match.level && (
+                        {user.level && (
                           <span style={{
                             fontSize: '0.75rem',
                             color: '#666',
@@ -347,7 +345,7 @@ const ChatList = ({ onSelectChat }) => {
                             padding: '2px 8px',
                             borderRadius: '12px'
                           }}>
-                            {match.level}
+                            {user.level}
                           </span>
                         )}
                         <span style={{
@@ -379,7 +377,7 @@ const ChatList = ({ onSelectChat }) => {
                     </div>
                     
                     {/* Common Interests */}
-                    {match.basics?.fun?.[0] && (
+                    {user.basics?.fun?.[0] && (
                       <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -395,7 +393,7 @@ const ChatList = ({ onSelectChat }) => {
                         }}>
                           ❤️
                           <span style={{ color: '#999' }}>
-                            Likes {match.basics.fun[0]}
+                            Likes {user.basics.fun[0]}
                           </span>
                         </span>
                       </div>

@@ -6,12 +6,13 @@ export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
   const [password, setPassword] = useState('');
   const { loginUser } = useUser();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (loginUser(email, password)) {
+    try {
+      await loginUser(email, password);
       onLoginSuccess();
-    } else {
-      alert("Invalid credentials. Try test@peach.com / password");
+    } catch (error) {
+      alert("Login failed: " + error.message);
     }
   };
 
@@ -49,13 +50,14 @@ export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
   const [password, setPassword] = useState('');
   const { signupUser } = useUser();
 
-  const handleSignup = (e) => {
+  const handleSignup = async (e) => {
     e.preventDefault();
     if (email && password) {
-      if (signupUser(email, password)) {
+      try {
+        await signupUser(email, password);
         onSignupSuccess();
-      } else {
-        alert("Email already exists.");
+      } catch (error) {
+        alert("Signup failed: " + error.message);
       }
     } else {
       alert("Please fill all fields.");
