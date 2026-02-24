@@ -1,148 +1,80 @@
 // src/components/Membership.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useUser } from '../context/UserContext';
-import { 
-  initializePaystackPayment, 
-  PAYSTACK_CONFIG, 
-  loadPaystackScript,
-  isPaystackConfigured 
-} from '../services/paystackService';
+import { PaystackButton } from 'react-paystack';
+import { PAYSTACK_CONFIG, verifyPayment } from '../services/paystackService';
 
 const Membership = ({ onBack }) => {
-  const { userProfile, grantPremium, subscription } = useUser();
-  const [selectedPlan, setSelectedPlan] = useState('monthly');
-  const [paymentStatus, setPaymentStatus] = useState(null);
+  const { userProfile, upgradeToPremium, subscription } = useUser();
   const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState(null);
-  const [paystackLoaded, setPaystackLoaded] = useState(false);
-  const [configStatus, setConfigStatus] = useState('checking');
+  const [paymentMethod, setPaymentMethod] = useState('onetime'); // 'onetime' or 'subscription'
+  const [paymentStatus, setPaymentStatus] = useState(null);
 
-  // Check configuration and load Paystack script
-  useEffect(() => {
-    const checkConfig = async () => {
-      // Check if Paystack is configured
-      const configured = isPaystackConfigured();
-      
-      if (configured) {
-        setConfigStatus('configured');
-        try {
-          await loadPaystackScript();
-          setPaystackLoaded(true);
-          console.log('✅ Paystack loaded successfully');
-        } catch (err) {
-          console.error('Failed to load Paystack:', err);
-          setError('Failed to load payment system. Using simulation mode.');
-          // Still set loaded to true for simulation mode
-          setPaystackLoaded(true);
-        }
-      } else {
-        setConfigStatus('simulation');
-        setPaystackLoaded(true);
-        console.log('🔧 Using simulation mode - No Paystack key detected');
-      }
-    };
-
-    checkConfig();
-  }, []);
-
-  const plans = {
-    monthly: {
-      name: 'Monthly Premium',
-      price: 2500,
-      features: [
-        'Unlimited daily ripens (999/day)',
-        'No advertisements',
-        'See who likes you',
-        'Profile badge',
-        'Priority support',
-        'Wingman AI Assistant'
-      ]
-    },
-    yearly: {
-      name: 'Yearly Premium',
-      price: 24000,
-      savings: 'Save ₦6,000',
-      features: [
-        'All monthly features',
-        '20% savings (₦6,000 off)',
-        'Exclusive yearly badge',
-        'Early access to new features',
-        'Premium support'
-      ]
-    }
-  };
-
-  const handlePayment = async () => {
-    if (!userProfile?.email) {
-      alert('Please log in first');
-      return;
-    }
-
-    if (!paystackLoaded) {
-      setError('Payment system still loading. Please try again.');
-      return;
-    }
-
+  const handlePaymentSuccess = async (reference) => {
     setProcessing(true);
-    setPaymentStatus('processing');
-    setError(null);
-
-    const plan = plans[selectedPlan];
-    const metadata = {
-      plan: selectedPlan,
-      userId: userProfile.id,
-      userName: userProfile.name || userProfile.alias,
-      userEmail: userProfile.email
-    };
-
-    initializePaystackPayment(
-      userProfile.email,
-      plan.price,
-      metadata,
-      {
-        onSuccess: async (response) => {
-          console.log('Payment callback received:', response);
-          setPaymentStatus('verifying');
-          
-          try {
-            // Grant premium access
-            await grantPremium(userProfile.id, selectedPlan, response.reference);
-            setPaymentStatus('success');
-            setProcessing(false);
-          } catch (err) {
-            console.error('Error granting premium:', err);
-            setError('Payment successful but failed to update account. Contact support.');
-            setPaymentStatus('failed');
-            setProcessing(false);
-          }
-        },
-        onClose: () => {
-          console.log('Payment window closed');
-          setProcessing(false);
-          setPaymentStatus(null);
-          setError('Payment was cancelled');
-        },
-        onError: (err) => {
-          console.error('Payment error:', err);
-          setError(err);
-          setPaymentStatus('failed');
-          setProcessing(false);
-        }
+    try {
+      // Verify payment with your backend
+      const verification = await verifyPayment(reference.reference);
+      
+      if (verification.status === 'success') {
+        // Update user to premium
+        await upgradeToPremium({
+          plan: 'premium',
+          paymentMethod: paymentMethod,
+          reference: reference.reference,
+          amount: verification.amount,
+          expiresAt: paymentMethod === 'subscription' 
+            ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+            : null
+        });
+        
+        setPaymentStatus('success');
+      } else {
+        setPaymentStatus('failed');
       }
-    );
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      setPaymentStatus('failed');
+    } finally {
+      setProcessing(false);
+    }
   };
 
-  // Show configuration warning in development
-  const showConfigWarning = configStatus === 'simulation' && process.env.NODE_ENV === 'development';
+  const handlePaymentClose = () => {
+    console.log('Payment dialog closed');
+    setPaymentStatus(null);
+  };
 
-  // Show premium active state
+  // Paystack configuration for one-time payment
+  const componentProps = {
+    email: userProfile?.email || 'user@example.com',
+    amount: PAYSTACK_CONFIG.plans.premium.amount * 100, // Convert to kobo
+    currency: PAYSTACK_CONFIG.currency,
+    publicKey: PAYSTACK_CONFIG.publicKey,
+    text: processing ? 'Processing...' : 'Pay ₦2,500',
+    onSuccess: handlePaymentSuccess,
+    onClose: handlePaymentClose,
+    metadata: {
+      userId: userProfile?.id,
+      plan: 'premium',
+      paymentType: paymentMethod
+    }
+  };
+
+  // For subscription (if you have a plan code)
+  const subscriptionProps = {
+    ...componentProps,
+    plan: PAYSTACK_CONFIG.plans.premium.planCode,
+    text: processing ? 'Processing...' : 'Subscribe ₦2,500/month'
+  };
+
   if (subscription?.isPremium || paymentStatus === 'success') {
     return (
       <div style={styles.successContainer}>
         <div style={styles.successIcon}>👑</div>
         <h1 style={styles.successTitle}>Welcome to Peach Premium!</h1>
         <p style={styles.successText}>
-          You now have unlimited access to all premium features.
+          You now have unlimited access to ripen matches and exclusive features.
         </p>
         <div style={styles.benefitsList}>
           <div style={styles.benefitItem}>✓ Unlimited daily ripens (999/day)</div>
@@ -151,7 +83,10 @@ const Membership = ({ onBack }) => {
           <div style={styles.benefitItem}>✓ Wingman AI Assistant</div>
           <div style={styles.benefitItem}>✓ Priority support</div>
         </div>
-        <button onClick={onBack} style={styles.successButton}>
+        <button
+          onClick={onBack}
+          style={styles.successButton}
+        >
           Start Discovering
         </button>
       </div>
@@ -160,121 +95,136 @@ const Membership = ({ onBack }) => {
 
   return (
     <div style={styles.container}>
-      {/* Header */}
       <header style={styles.header}>
         <button onClick={onBack} style={styles.backButton}>←</button>
-        <h2 style={styles.headerTitle}>Upgrade to Premium</h2>
+        <h2 style={styles.headerTitle}>Membership Plans</h2>
       </header>
 
-      {/* Configuration Warning - Only in development */}
-      {showConfigWarning && (
-        <div style={styles.warning}>
-          <strong>🔧 Simulation Mode:</strong> No Paystack key detected. Payments will be simulated for testing.
-          <div style={styles.warningNote}>
-            Add REACT_APP_PAYSTACK_PUBLIC_KEY to your .env file for real payments.
-          </div>
+      {paymentStatus === 'failed' && (
+        <div style={styles.errorMessage}>
+          Payment failed. Please try again.
         </div>
       )}
 
-      {/* Paystack Loading State */}
-      {!paystackLoaded && !error && (
-        <div style={styles.loadingPaystack}>
-          <div style={styles.smallSpinner}></div>
-          <p>Loading payment system...</p>
-        </div>
-      )}
-
-      {/* Error Message */}
-      {(paymentStatus === 'failed' || error) && (
-        <div style={styles.error}>
-          <strong>Error:</strong> {error || 'Payment failed. Please try again.'}
-        </div>
-      )}
-
-      {/* Processing State */}
-      {paymentStatus === 'processing' && (
-        <div style={styles.processing}>
-          <div style={styles.spinner}></div>
-          <p>Opening Paystack payment window...</p>
-          {configStatus === 'simulation' && (
-            <p style={styles.simulationNote}>Using simulation mode - no actual payment will be processed</p>
-          )}
-        </div>
-      )}
-
-      {paymentStatus === 'verifying' && (
-        <div style={styles.processing}>
-          <div style={styles.spinner}></div>
-          <p>Verifying your payment...</p>
-          <p style={styles.processingNote}>Please wait while we confirm your transaction</p>
-        </div>
-      )}
-
-      {/* Plans */}
       <div style={styles.plansContainer}>
         {/* Free Plan */}
         <div style={styles.freePlan}>
           <h3 style={styles.planTitle}>Free Plan</h3>
-          <div style={styles.price}>₦0 <span style={styles.period}>/ month</span></div>
-          <ul style={styles.featureList}>
-            <li style={styles.featureItem}>✓ Basic matching</li>
-            <li style={styles.featureItem}>⚠️ 25 ripens per day</li>
-            <li style={styles.featureItem}>❌ Ads shown in feed</li>
-            <li style={styles.featureItem}>❌ See who likes you</li>
-            <li style={styles.featureItem}>❌ Wingman AI</li>
+          <p style={styles.price}>₦0 <span style={styles.monthly}>/ month</span></p>
+          <ul style={styles.featuresList}>
+            <li style={styles.featureItem}>✅ Match with anyone</li>
+            <li style={styles.featureItem}>⚠️ <strong>25 Unripes / Day</strong> limit</li>
+            <li style={styles.featureItem}>❌ Ads in feed</li>
           </ul>
           <button disabled style={styles.currentPlanButton}>
             Current Plan
           </button>
         </div>
 
-        {/* Premium Plans */}
-        {Object.entries(plans).map(([key, plan]) => (
-          <div
-            key={key}
-            style={{
-              ...styles.premiumPlan,
-              ...(selectedPlan === key ? styles.selectedPlan : {})
-            }}
-            onClick={() => !processing && setSelectedPlan(key)}
-          >
-            {plan.savings && (
-              <div style={styles.savingsBadge}>{plan.savings}</div>
-            )}
-            <h3 style={styles.planTitle}>
-              {plan.name} 👑
-            </h3>
-            <div style={styles.price}>
-              ₦{plan.price.toLocaleString()}
-              <span style={styles.period}>/{key === 'yearly' ? 'year' : 'month'}</span>
-            </div>
-            <ul style={styles.featureList}>
-              {plan.features.map((feature, index) => (
-                <li key={index} style={styles.featureItem}>✓ {feature}</li>
-              ))}
-            </ul>
+        {/* Premium Plan */}
+        <div style={styles.premiumPlan}>
+          <div style={styles.bestValueBadge}>BEST VALUE</div>
+          <h3 style={styles.planTitle}>Peach Premium 👑</h3>
+          <p style={styles.price}>₦2,500 <span style={styles.monthly}>/ month</span></p>
+          <ul style={styles.featuresList}>
+            <li style={styles.featureItem}>✅ <strong>Unlimited daily ripens (999/day)</strong></li>
+            <li style={styles.featureItem}>✅ No ads in your feed</li>
+            <li style={styles.featureItem}>✅ See who likes you</li>
+            <li style={styles.featureItem}>✅ Wingman AI Assistant</li>
+            <li style={styles.featureItem}>✅ Priority support</li>
+          </ul>
+
+          {/* Payment Method Toggle */}
+          <div style={styles.paymentToggle}>
+            <button
+              style={{
+                ...styles.toggleButton,
+                ...(paymentMethod === 'onetime' ? styles.toggleActive : {})
+              }}
+              onClick={() => setPaymentMethod('onetime')}
+            >
+              One-time
+            </button>
+            <button
+              style={{
+                ...styles.toggleButton,
+                ...(paymentMethod === 'subscription' ? styles.toggleActive : {})
+              }}
+              onClick={() => setPaymentMethod('subscription')}
+            >
+              Monthly
+            </button>
           </div>
-        ))}
 
-        {/* Upgrade Button */}
-        <button
-          onClick={handlePayment}
-          disabled={processing || !paystackLoaded}
-          style={{
-            ...styles.upgradeButton,
-            ...((processing || !paystackLoaded) ? styles.disabledButton : {})
-          }}
-        >
-          {!paystackLoaded ? 'Loading...' : 
-           processing ? 'Processing...' : 
-           `Pay ₦${plans[selectedPlan].price.toLocaleString()}`}
-        </button>
+          {/* Paystack Button */}
+          <PaystackButton
+            {...(paymentMethod === 'subscription' && PAYSTACK_CONFIG.plans.premium.planCode 
+              ? subscriptionProps 
+              : componentProps)}
+            style={styles.upgradeButton}
+          />
 
-        <p style={styles.note}>
-          🔒 {configStatus === 'simulation' 
-            ? 'Demo Mode: No actual payment will be processed' 
-            : 'Secure payment powered by Paystack. All major cards accepted.'}
-        </p>
+          <p style={styles.paymentNote}>
+            Secure payment via Paystack. Cancel anytime.
+          </p>
+        </div>
+      </div>
+
+      {/* Features Comparison */}
+      <div style={styles.comparisonSection}>
+        <h3 style={styles.comparisonTitle}>Why Go Premium?</h3>
+        <div style={styles.comparisonGrid}>
+          <div style={styles.comparisonCard}>
+            <div style={styles.comparisonIcon}>🎯</div>
+            <h4>More Matches</h4>
+            <p>Unlimited daily ripens to find your perfect match faster</p>
+          </div>
+          <div style={styles.comparisonCard}>
+            <div style={styles.comparisonIcon}>👁️</div>
+            <h4>See Who Likes You</h4>
+            <p>Know who's interested before you swipe</p>
+          </div>
+          <div style={styles.comparisonCard}>
+            <div style={styles.comparisonIcon}>🚫</div>
+            <h4>No Ads</h4>
+            <p>Enjoy an uninterrupted experience</p>
+          </div>
+          <div style={styles.comparisonCard}>
+            <div style={styles.comparisonIcon}>🦜</div>
+            <h4>Wingman AI</h4>
+            <p>Get AI-powered conversation help</p>
+          </div>
+          <div style={styles.comparisonCard}>
+            <div style={styles.comparisonIcon}>⚡</div>
+            <h4>Priority Support</h4>
+            <p>Get help faster when you need it</p>
+          </div>
+        </div>
+      </div>
+
+      {/* FAQ Section */}
+      <div style={styles.faqSection}>
+        <h3 style={styles.faqTitle}>Frequently Asked Questions</h3>
+        
+        <div style={styles.faqItem}>
+          <h4>How does Paystack work?</h4>
+          <p>Paystack is a secure payment gateway that accepts all Nigerian cards and bank transfers. Your payment information is encrypted and never stored on our servers.</p>
+        </div>
+
+        <div style={styles.faqItem}>
+          <h4>Can I cancel my subscription?</h4>
+          <p>Yes, you can cancel anytime from your settings. Your premium benefits will continue until the end of your billing period.</p>
+        </div>
+
+        <div style={styles.faqItem}>
+          <h4>What payment methods are accepted?</h4>
+          <p>All Nigerian bank cards (Verve, Mastercard, Visa), bank transfers, and USSD codes are accepted.</p>
+        </div>
+
+        <div style={styles.faqItem}>
+          <h4>Is there a free trial?</h4>
+          <p>We occasionally offer free trials to new users. Check your email or app notifications for current offers.</p>
+        </div>
       </div>
     </div>
   );
@@ -284,8 +234,8 @@ const styles = {
   container: {
     minHeight: '100vh',
     backgroundColor: '#f8f9fa',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    paddingBottom: '40px'
+    paddingBottom: '40px',
+    overflowY: 'auto'
   },
   header: {
     padding: '20px',
@@ -298,138 +248,63 @@ const styles = {
     zIndex: 100
   },
   backButton: {
+    marginRight: '15px',
     background: 'none',
     border: 'none',
     fontSize: '1.5rem',
     cursor: 'pointer',
-    marginRight: '15px',
+    padding: '10px',
+    borderRadius: '50%',
     width: '40px',
     height: '40px',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '50%'
+    justifyContent: 'center'
   },
   headerTitle: {
     fontSize: '1.2rem',
     margin: 0,
     color: '#333'
   },
-  warning: {
-    backgroundColor: '#fff3cd',
-    color: '#856404',
+  errorMessage: {
+    backgroundColor: '#FFEBEE',
+    color: '#C62828',
     padding: '15px',
     margin: '20px',
-    borderRadius: '8px',
+    borderRadius: '10px',
     textAlign: 'center',
-    border: '1px solid #ffeeba'
-  },
-  warningNote: {
-    fontSize: '0.9rem',
-    marginTop: '8px',
-    color: '#666'
-  },
-  loadingPaystack: {
-    textAlign: 'center',
-    padding: '20px',
-    backgroundColor: '#e3f2fd',
-    margin: '20px',
-    borderRadius: '8px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '10px'
-  },
-  smallSpinner: {
-    width: '20px',
-    height: '20px',
-    border: '2px solid #f3f3f3',
-    borderTop: '2px solid #FF6347',
-    borderRadius: '50%',
-    animation: 'spin 1s linear infinite'
-  },
-  error: {
-    backgroundColor: '#ffebee',
-    color: '#c62828',
-    padding: '15px',
-    margin: '20px',
-    borderRadius: '8px',
-    textAlign: 'center',
-    border: '1px solid #ffcdd2'
-  },
-  processing: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-    padding: '20px',
-    textAlign: 'center'
-  },
-  spinner: {
-    width: '50px',
-    height: '50px',
-    border: '3px solid #f3f3f3',
-    borderTop: '3px solid #FF6347',
-    borderRadius: '50%',
-    animation: 'spin 1s linear infinite',
-    marginBottom: '20px'
-  },
-  processingNote: {
-    color: '#666',
-    fontSize: '0.9rem',
-    marginTop: '10px'
-  },
-  simulationNote: {
-    color: '#FF6347',
-    fontSize: '0.9rem',
-    marginTop: '10px',
-    fontStyle: 'italic'
+    border: '1px solid #FFCDD2'
   },
   plansContainer: {
     padding: '20px',
-    maxWidth: '500px',
+    maxWidth: '600px',
     margin: '0 auto'
   },
   freePlan: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
+    border: '1px solid #ddd',
+    borderRadius: '15px',
     padding: '25px',
-    marginBottom: '20px',
-    border: '1px solid #ddd'
+    backgroundColor: 'white',
+    marginBottom: '20px'
   },
   premiumPlan: {
-    backgroundColor: 'white',
-    borderRadius: '12px',
+    border: '2px solid #FFD700',
+    borderRadius: '15px',
     padding: '25px',
-    marginBottom: '20px',
-    border: '2px solid #e0e0e0',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
+    backgroundColor: '#FFF8DC',
     position: 'relative',
     overflow: 'hidden'
   },
-  selectedPlan: {
-    borderColor: '#FF6347',
-    boxShadow: '0 10px 30px rgba(255,99,71,0.15)',
-    transform: 'scale(1.02)'
-  },
-  savingsBadge: {
+  bestValueBadge: {
     position: 'absolute',
-    top: '10px',
+    top: '15px',
     right: '-30px',
-    backgroundColor: '#4CAF50',
-    color: 'white',
+    background: '#FFD700',
     padding: '5px 40px',
     transform: 'rotate(45deg)',
+    fontWeight: 'bold',
     fontSize: '0.8rem',
-    fontWeight: 'bold'
+    color: '#333'
   },
   planTitle: {
     fontSize: '1.3rem',
@@ -439,121 +314,167 @@ const styles = {
   price: {
     fontSize: '2rem',
     fontWeight: 'bold',
-    color: '#FF6347',
-    marginBottom: '15px'
+    margin: '10px 0',
+    color: '#333'
   },
-  period: {
+  monthly: {
     fontSize: '1rem',
     fontWeight: 'normal',
     color: '#666'
   },
-  featureList: {
+  featuresList: {
     listStyle: 'none',
     padding: 0,
     margin: '20px 0'
   },
   featureItem: {
     padding: '8px 0',
-    color: '#555',
     fontSize: '0.95rem',
-    borderBottom: '1px solid #f0f0f0'
+    color: '#555'
   },
   currentPlanButton: {
     width: '100%',
     padding: '12px',
-    backgroundColor: '#e0e0e0',
+    borderRadius: '10px',
+    border: '1px solid #ccc',
+    background: '#e0e0e0',
     color: '#888',
-    border: 'none',
-    borderRadius: '6px',
     fontSize: '1rem',
     cursor: 'not-allowed'
   },
+  paymentToggle: {
+    display: 'flex',
+    gap: '10px',
+    marginBottom: '15px'
+  },
+  toggleButton: {
+    flex: 1,
+    padding: '10px',
+    borderRadius: '8px',
+    border: '1px solid #ddd',
+    background: 'white',
+    fontSize: '0.9rem',
+    cursor: 'pointer',
+    transition: 'all 0.2s'
+  },
+  toggleActive: {
+    background: '#FF6347',
+    color: 'white',
+    borderColor: '#FF6347'
+  },
   upgradeButton: {
     width: '100%',
-    padding: '16px',
-    backgroundColor: '#FF6347',
-    color: 'white',
+    padding: '15px',
+    borderRadius: '10px',
     border: 'none',
-    borderRadius: '8px',
-    fontSize: '1.1rem',
+    background: '#FF6347',
+    color: 'white',
     fontWeight: 'bold',
+    fontSize: '1rem',
     cursor: 'pointer',
-    marginTop: '10px'
+    transition: 'all 0.2s'
   },
-  disabledButton: {
-    opacity: 0.6,
-    cursor: 'not-allowed'
-  },
-  note: {
-    textAlign: 'center',
-    color: '#666',
+  paymentNote: {
     fontSize: '0.8rem',
-    marginTop: '15px'
+    textAlign: 'center',
+    marginTop: '10px',
+    color: '#666'
   },
   successContainer: {
     minHeight: '100vh',
+    padding: '40px 20px',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '20px',
-    textAlign: 'center',
-    backgroundColor: '#f8f9fa'
+    backgroundColor: '#f8f9fa',
+    textAlign: 'center'
   },
   successIcon: {
     fontSize: '5rem',
     marginBottom: '20px'
   },
   successTitle: {
-    fontSize: '2rem',
+    fontSize: '1.8rem',
     color: '#333',
     marginBottom: '15px'
   },
   successText: {
     fontSize: '1rem',
     color: '#666',
-    marginBottom: '30px'
+    marginBottom: '25px',
+    maxWidth: '300px'
   },
   benefitsList: {
-    backgroundColor: 'white',
-    padding: '20px',
-    borderRadius: '12px',
     marginBottom: '30px',
     textAlign: 'left',
-    boxShadow: '0 5px 15px rgba(0,0,0,0.05)',
-    maxWidth: '400px'
+    backgroundColor: 'white',
+    padding: '20px',
+    borderRadius: '15px',
+    boxShadow: '0 5px 15px rgba(0,0,0,0.05)'
   },
   benefitItem: {
     padding: '8px 0',
     color: '#555',
-    fontSize: '1rem'
+    fontSize: '0.95rem'
   },
   successButton: {
     padding: '15px 40px',
-    backgroundColor: '#FF6347',
+    background: '#FF6347',
     color: 'white',
     border: 'none',
     borderRadius: '25px',
     fontSize: '1rem',
-    fontWeight: 'bold',
-    cursor: 'pointer'
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s'
+  },
+  comparisonSection: {
+    padding: '40px 20px',
+    backgroundColor: 'white',
+    marginTop: '20px'
+  },
+  comparisonTitle: {
+    fontSize: '1.5rem',
+    color: '#333',
+    textAlign: 'center',
+    marginBottom: '30px'
+  },
+  comparisonGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+    gap: '20px',
+    maxWidth: '800px',
+    margin: '0 auto'
+  },
+  comparisonCard: {
+    padding: '20px',
+    textAlign: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '10px'
+  },
+  comparisonIcon: {
+    fontSize: '2rem',
+    marginBottom: '10px'
+  },
+  faqSection: {
+    padding: '40px 20px',
+    maxWidth: '600px',
+    margin: '0 auto'
+  },
+  faqTitle: {
+    fontSize: '1.3rem',
+    color: '#333',
+    marginBottom: '20px',
+    textAlign: 'center'
+  },
+  faqItem: {
+    marginBottom: '20px',
+    padding: '15px',
+    backgroundColor: 'white',
+    borderRadius: '10px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
   }
 };
-
-// Add keyframes for animations
-if (typeof document !== 'undefined') {
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
-    }
-  `;
-  document.head.appendChild(style);
-}
 
 export default Membership;

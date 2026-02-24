@@ -7,7 +7,15 @@ import { act } from 'react';
 // Helper to provide context
 const renderWithContext = (ui, { subscription, userProfile, potentialMatches, ripenMatch, isRipped, incrementAdsSeen }) => {
   return render(
-    <UserContext.Provider value={{ subscription, userProfile, potentialMatches, ripenMatch, isRipped, incrementAdsSeen }}>
+    <UserContext.Provider value={{
+        subscription,
+        userProfile,
+        potentialMatches,
+        ripenMatch,
+        isRipped,
+        incrementAdsSeen,
+        ripenedUsers: []
+    }}>
       {ui}
     </UserContext.Provider>
   );

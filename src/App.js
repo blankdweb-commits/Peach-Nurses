@@ -1,4 +1,3 @@
-// App.js
 import React, { useState, useEffect } from 'react';
 import { UserProvider, useUser } from './context/UserContext';
 import { AdminProvider } from './context/AdminContext';
@@ -8,6 +7,7 @@ import AdminDashboard from './components/AdminDashboard';
 import Settings from './components/Settings';
 import ChatList from './components/ChatList';
 import Chat from './components/Chat';
+import Likes from './components/Likes';
 import Onboarding from './components/Onboarding';
 import { Login, Signup } from './components/Auth';
 import BottomNav from './components/BottomNav';
@@ -94,7 +94,7 @@ function AppContent() {
       </div>
   );
 
-  const showNav = ['discover', 'chatList', 'membership', 'settings'].includes(currentView);
+  const showNav = ['discover', 'chatList', 'likes', 'membership', 'settings'].includes(currentView);
 
   return (
     <div className="app-container">
@@ -114,6 +114,10 @@ function AppContent() {
 
         {currentView === 'chatConversation' && selectedChatId && (
           <Chat matchId={selectedChatId} onBack={handleBackToChatList} />
+        )}
+
+        {currentView === 'likes' && (
+          <Likes onBack={navigateToDiscover} onNavigateToStore={navigateToMembership} />
         )}
 
         {currentView === 'membership' && (

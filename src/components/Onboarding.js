@@ -1,14 +1,9 @@
-// components/Onboarding.js
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
-import LoadingSpinner from './LoadingSpinner';
-import ErrorDisplay from './ErrorDisplay';
-import { getErrorMessage } from '../utils/errorHandler';
+
 const Onboarding = () => {
-  const { currentUser, updateUserProfile, setOnboardingComplete } = useUser();
+  const { updateUserProfile, setOnboardingComplete } = useUser();
   const [currentStep, setCurrentStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
     username: '',
     alias: '',
@@ -31,14 +26,6 @@ const Onboarding = () => {
   const LOCATIONS = ['Asaba', 'Warri', 'Ughelli', 'Sapele', 'Agbor', 'Okpanam', 'Abraka', 'Patani'];
   const LEVELS = ['100L', '200L', '300L', '400L', '500L', 'Intern', 'Staff Nurse', 'Senior Nurse'];
 
-  // Pre-fill username from signup if available
-  useEffect(() => {
-    if (currentUser?.email && !formData.username) {
-      const suggestedUsername = currentUser.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
-      setFormData(prev => ({ ...prev, username: suggestedUsername }));
-    }
-  }, [currentUser, formData.username]);
-
   // Function to check username availability (simulated API call)
   const checkUsernameAvailability = async (username) => {
     if (!username || username.length < 3) {
@@ -49,35 +36,30 @@ const Onboarding = () => {
 
     setCheckingUsername(true);
     
-    try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const takenUsernames = ['peachlover', 'deltaqueen', 'goldennurse', 'nursejohn', 'medstudent'];
-      
-      if (takenUsernames.includes(username.toLowerCase())) {
-        setUsernameAvailable(false);
-        setUsernameMessage('Username is already taken');
-      } else if (username.length < 3) {
-        setUsernameAvailable(false);
-        setUsernameMessage('Username must be at least 3 characters');
-      } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
-        setUsernameAvailable(false);
-        setUsernameMessage('Only letters, numbers, and underscores allowed');
-      } else if (username.length > 20) {
-        setUsernameAvailable(false);
-        setUsernameMessage('Username must be 20 characters or less');
-      } else {
-        setUsernameAvailable(true);
-        setUsernameMessage('Username is available!');
-      }
-    } catch (err) {
-      console.error('Username check error:', err);
-      setUsernameAvailable(null);
-      setUsernameMessage('Unable to check username availability');
-    } finally {
-      setCheckingUsername(false);
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // In a real app, this would be an API call to your backend
+    const takenUsernames = ['peachlover', 'deltaqueen', 'goldennurse', 'nursejohn', 'medstudent'];
+    
+    if (takenUsernames.includes(username.toLowerCase())) {
+      setUsernameAvailable(false);
+      setUsernameMessage('Username is already taken');
+    } else if (username.length < 3) {
+      setUsernameAvailable(false);
+      setUsernameMessage('Username must be at least 3 characters');
+    } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setUsernameAvailable(false);
+      setUsernameMessage('Only letters, numbers, and underscores allowed');
+    } else if (username.length > 20) {
+      setUsernameAvailable(false);
+      setUsernameMessage('Username must be 20 characters or less');
+    } else {
+      setUsernameAvailable(true);
+      setUsernameMessage('Username is available!');
     }
+    
+    setCheckingUsername(false);
   };
 
   // Debounced username check
@@ -115,53 +97,32 @@ const Onboarding = () => {
     if (currentStep < 4) {
       setCurrentStep(prev => prev + 1);
     } else {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Validate required fields
-        if (!formData.username || !formData.level || !formData.based || !formData.job || !formData.lookingFor) {
-          throw new Error('Please fill in all required fields');
-        }
-
-        if (usernameAvailable !== true) {
-          throw new Error('Please choose an available username');
-        }
-
-        const completeProfile = {
-          username: formData.username,
-          alias: formData.alias || formData.username,
-          real_name: formData.alias || formData.username,
-          level: formData.level,
-          based: formData.based,
-          upbringing: formData.upbringing || '',
-          job: formData.job,
+      // FIXED: Save all profile data and complete onboarding
+      const completeProfile = {
+        ...formData,
+        photo_url: `https://picsum.photos/400/600?random=${Math.random()}`,
+        basics: {
           fun: formData.fun,
-          media: formData.media,
+          media: formData.media
+        },
+        relationships: {
           values: formData.values,
-          looking_for: formData.lookingFor,
-          vision: formData.vision || '',
-          special: formData.special || '',
-          photo_url: `https://picsum.photos/400/600?random=${Math.random()}`,
-          is_premium: false,
-          daily_unripes: 25
-        };
-        
-        console.log('Saving profile:', completeProfile);
-        const saved = await updateUserProfile(completeProfile);
-        
-        if (saved) {
-          console.log('Profile saved successfully');
-          setOnboardingComplete();
-        } else {
-          throw new Error('Failed to save profile. Please try again.');
+          lookingFor: formData.lookingFor
+        },
+        life: {
+          based: formData.based,
+          upbringing: formData.upbringing
         }
+      };
+      
+      try {
+        // Save to context
+        await updateUserProfile(completeProfile);
+
+        // Mark onboarding as complete - this will trigger navigation to Discover
+        await setOnboardingComplete();
       } catch (error) {
-        console.error('Error saving profile:', error);
-        const errorInfo = getErrorMessage(error, 'onboarding');
-        setError(errorInfo);
-      } finally {
-        setLoading(false);
+        alert("Error saving profile: " + error.message);
       }
     }
   };
@@ -172,15 +133,10 @@ const Onboarding = () => {
     }
   };
 
-  const handleRetry = () => {
-    setError(null);
-    handleNext();
-  };
-
   const renderStep1 = () => {
     return (
       <div style={styles.stepContainer}>
-        <h2 style={styles.title}>Welcome to Peach 🍑</h2>
+        <h2>Welcome to Peach 🍑</h2>
         <p style={styles.subtitle}>Let's create your profile to find your perfect match</p>
         
         <div style={styles.formGroup}>
@@ -200,7 +156,6 @@ const Onboarding = () => {
                 ...(usernameAvailable === true ? styles.usernameAvailable : {}),
                 ...(usernameAvailable === false ? styles.usernameTaken : {})
               }}
-              disabled={loading}
             />
             {checkingUsername && (
               <span style={styles.checkingIndicator}>Checking...</span>
@@ -230,7 +185,6 @@ const Onboarding = () => {
             placeholder="e.g., Golden Nurse, Delta Queen"
             maxLength={20}
             style={styles.input}
-            disabled={loading}
           />
           <small style={styles.small}>This is how others will see you. You can change it anytime.</small>
         </div>
@@ -247,7 +201,6 @@ const Onboarding = () => {
                   ...(formData.level === level ? styles.selectedOption : {})
                 }}
                 onClick={() => handleInputChange('level', level)}
-                disabled={loading}
               >
                 {level}
               </button>
@@ -261,7 +214,7 @@ const Onboarding = () => {
   const renderStep2 = () => {
     return (
       <div style={styles.stepContainer}>
-        <h2 style={styles.title}>Tell us about your life</h2>
+        <h2>Tell us about your life</h2>
         
         <div style={styles.formGroup}>
           <label style={styles.label}>Where are you based? *</label>
@@ -275,7 +228,6 @@ const Onboarding = () => {
                   ...(formData.based === location ? styles.selectedOption : {})
                 }}
                 onClick={() => handleInputChange('based', location)}
-                disabled={loading}
               >
                 {location}
               </button>
@@ -291,7 +243,6 @@ const Onboarding = () => {
             placeholder="Share about your family, background, culture..."
             rows={4}
             style={styles.textarea}
-            disabled={loading}
           />
         </div>
 
@@ -303,7 +254,6 @@ const Onboarding = () => {
             onChange={(e) => handleInputChange('job', e.target.value)}
             placeholder="e.g., Nurse, Student, Entrepreneur"
             style={styles.input}
-            disabled={loading}
           />
         </div>
       </div>
@@ -313,7 +263,7 @@ const Onboarding = () => {
   const renderStep3 = () => {
     return (
       <div style={styles.stepContainer}>
-        <h2 style={styles.title}>Your interests & values</h2>
+        <h2>Your interests & values</h2>
         
         <div style={styles.formGroup}>
           <label style={styles.label}>What do you do for fun? (Select up to 5)</label>
@@ -328,7 +278,7 @@ const Onboarding = () => {
                   ...(formData.fun.length >= 5 && !formData.fun.includes(item) ? styles.disabledOption : {})
                 }}
                 onClick={() => handleMultiSelect('fun', item)}
-                disabled={formData.fun.length >= 5 && !formData.fun.includes(item) || loading}
+                disabled={formData.fun.length >= 5 && !formData.fun.includes(item)}
               >
                 {item}
               </button>
@@ -349,7 +299,6 @@ const Onboarding = () => {
                   ...(formData.media.includes(item) ? styles.selectedOption : {})
                 }}
                 onClick={() => handleMultiSelect('media', item)}
-                disabled={loading}
               >
                 {item}
               </button>
@@ -369,7 +318,6 @@ const Onboarding = () => {
                   ...(formData.values.includes(item) ? styles.selectedOption : {})
                 }}
                 onClick={() => handleMultiSelect('values', item)}
-                disabled={loading}
               >
                 {item}
               </button>
@@ -383,7 +331,7 @@ const Onboarding = () => {
   const renderStep4 = () => {
     return (
       <div style={styles.stepContainer}>
-        <h2 style={styles.title}>Final touches</h2>
+        <h2>Final touches</h2>
         
         <div style={styles.formGroup}>
           <label style={styles.label}>What are you looking for? *</label>
@@ -391,7 +339,6 @@ const Onboarding = () => {
             value={formData.lookingFor}
             onChange={(e) => handleInputChange('lookingFor', e.target.value)}
             style={styles.select}
-            disabled={loading}
           >
             <option value="">Select one...</option>
             <option value="Serious Relationship">Serious Relationship</option>
@@ -410,7 +357,6 @@ const Onboarding = () => {
             placeholder="Where do you see yourself in 5 years? What are your dreams?"
             rows={4}
             style={styles.textarea}
-            disabled={loading}
           />
         </div>
 
@@ -422,7 +368,6 @@ const Onboarding = () => {
             placeholder="Share something unique about yourself..."
             rows={4}
             style={styles.textarea}
-            disabled={loading}
           />
         </div>
       </div>
@@ -438,78 +383,56 @@ const Onboarding = () => {
            usernameAvailable === true;
   };
 
-  const isStep2Valid = () => {
-    return formData.based && formData.job;
-  };
-
-  const isStep4Valid = () => {
-    return formData.lookingFor;
-  };
-
-  const isContinueDisabled = 
-    (currentStep === 1 && !isStep1Valid()) ||
-    (currentStep === 2 && !isStep2Valid()) ||
-    (currentStep === 4 && !isStep4Valid()) ||
-    loading;
-
-  if (loading && currentStep === 4) {
-    return <LoadingSpinner message="Creating your profile..." />;
-  }
-
   return (
-    <>
-      {error && (
-        <ErrorDisplay 
-          error={error} 
-          onRetry={handleRetry} 
-          onDismiss={() => setError(null)} 
-        />
-      )}
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <div style={styles.progressBar}>
-            <div 
-              style={{ ...styles.progressFill, width: `${progressPercentage}%` }}
-            />
-          </div>
-          <div style={styles.stepIndicator}>Step {currentStep} of 4</div>
+    <div style={styles.container}>
+      <div style={styles.header}>
+        <div style={styles.progressBar}>
+          <div 
+            style={{ ...styles.progressFill, width: `${progressPercentage}%` }}
+          ></div>
         </div>
+        <div style={styles.stepIndicator}>Step {currentStep} of 4</div>
+      </div>
 
-        <div style={styles.content}>
-          {currentStep === 1 && renderStep1()}
-          {currentStep === 2 && renderStep2()}
-          {currentStep === 3 && renderStep3()}
-          {currentStep === 4 && renderStep4()}
-        </div>
+      <div style={styles.content}>
+        {currentStep === 1 && renderStep1()}
+        {currentStep === 2 && renderStep2()}
+        {currentStep === 3 && renderStep3()}
+        {currentStep === 4 && renderStep4()}
+      </div>
 
-        <div style={styles.footer}>
-          <div style={styles.buttonGroup}>
-            {currentStep > 1 && (
-              <button 
-                type="button" 
-                style={styles.backButton}
-                onClick={handleBack}
-                disabled={loading}
-              >
-                ← Back
-              </button>
-            )}
-            
+      <div style={styles.footer}>
+        <div style={styles.buttonGroup}>
+          {currentStep > 1 && (
             <button 
               type="button" 
-              style={{
-                ...styles.continueButton,
-                ...(isContinueDisabled ? styles.disabledButton : {})
-              }}
-              onClick={handleNext}
-              disabled={isContinueDisabled}
+              style={styles.backButton}
+              onClick={handleBack}
             >
-              {loading ? 'Saving...' : (currentStep === 4 ? 'Complete Profile' : 'Continue →')}
+              ← Back
             </button>
-          </div>
+          )}
+          
+          <button 
+            type="button" 
+            style={{
+              ...styles.continueButton,
+              ...((currentStep === 1 && !isStep1Valid()) ||
+                  (currentStep === 2 && (!formData.based || !formData.job)) ||
+                  (currentStep === 4 && !formData.lookingFor)) ? styles.disabledButton : {}
+            }}
+            onClick={handleNext}
+            disabled={
+              (currentStep === 1 && !isStep1Valid()) ||
+              (currentStep === 2 && (!formData.based || !formData.job)) ||
+              (currentStep === 4 && !formData.lookingFor)
+            }
+          >
+            {currentStep === 4 ? 'Complete Profile' : 'Continue →'}
+          </button>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
@@ -547,11 +470,6 @@ const styles = {
   },
   stepContainer: {
     padding: '20px 0'
-  },
-  title: {
-    fontSize: '1.5rem',
-    marginBottom: '10px',
-    color: '#333'
   },
   subtitle: {
     color: '#666',

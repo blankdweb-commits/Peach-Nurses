@@ -1,24 +1,12 @@
-// components/Settings.js
 import React, { useState } from 'react';
 import { useUser } from '../context/UserContext';
+// Remove unused import
+// import { mockBackend } from '../services/mockBackend';
 import FeedbackHandler from './FeedbackHandler';
 import KYCVerification from './KYCVerification';
 
 const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
-  const { 
-    userProfile, 
-    updateUserProfile, 
-    subscription, 
-    business, 
-    createBusinessAccount, 
-    postAd, 
-    setOnboardingComplete, 
-    submitFeedback, 
-    logoutUser, 
-    kycStatus,
-    currentUser 
-  } = useUser();
-  
+  const { currentUser, userProfile, updateUserProfile, subscription, business, createBusinessAccount, postAd, setOnboardingComplete, submitFeedback, logoutUser, kycStatus } = useUser();
   const [activeTab, setActiveTab] = useState('profile');
   const [adForm, setAdForm] = useState({
     title: '',
@@ -31,33 +19,6 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
   const [showFeedback, setShowFeedback] = useState(false);
   const [showKYC, setShowKYC] = useState(false);
 
-  // Create safe profile object with defaults
-  const safeProfile = {
-    photoUrl: userProfile?.photoUrl || null,
-    name: userProfile?.name || currentUser?.username || 'User',
-    email: userProfile?.email || currentUser?.email || '',
-    alias: userProfile?.alias || '',
-    level: userProfile?.level || '',
-    vision: userProfile?.vision || '',
-    special: userProfile?.special || '',
-    life: {
-      based: userProfile?.life?.based || '',
-      upbringing: userProfile?.life?.upbringing || ''
-    },
-    work: {
-      job: userProfile?.work?.job || ''
-    },
-    preferences: {
-      allowAds: userProfile?.preferences?.allowAds ?? true
-    }
-  };
-
-  // Safe business object with defaults
-  const safeBusiness = business || {
-    isBusiness: false,
-    ads: []
-  };
-
   const handleProfileChange = (field, value) => {
     updateUserProfile({ [field]: value });
   };
@@ -65,7 +26,7 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
   const handleNestedProfileChange = (section, field, value) => {
     updateUserProfile({
       [section]: {
-        ...(userProfile?.[section] || {}),
+        ...userProfile[section],
         [field]: value
       }
     });
@@ -82,7 +43,6 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
   const handlePreferenceChange = (key, value) => {
     updateUserProfile({
       preferences: {
-        ...(userProfile?.preferences || {}),
         [key]: value
       }
     });
@@ -136,12 +96,6 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
     }
   };
 
-  const handleLogout = () => {
-    if (window.confirm("Are you sure you want to logout?")) {
-      logoutUser();
-    }
-  };
-
   if (showKYC) {
       return <KYCVerification onBack={() => setShowKYC(false)} />;
   }
@@ -186,8 +140,8 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
 
           <div style={styles.avatarSection}>
             <div style={styles.avatarPreview}>
-              {safeProfile.photoUrl ? (
-                <img src={safeProfile.photoUrl} alt="Avatar" style={styles.avatarImage} />
+              {userProfile.photoUrl ? (
+                <img src={userProfile.photoUrl} alt="Avatar" style={styles.avatarImage} />
               ) : (
                 <span style={styles.avatarPlaceholder}>👤</span>
               )}
@@ -196,23 +150,23 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
           </div>
 
           <div style={styles.readOnlySection}>
-            <label style={styles.label}>Name (Read-only)</label>
-            <input style={styles.disabledInput} value={safeProfile.name} disabled />
+            <label style={styles.label}>Username (Read-only)</label>
+            <input style={styles.disabledInput} value={userProfile.username || 'Anonymous'} disabled />
             <label style={styles.label}>Email (Read-only)</label>
-            <input style={styles.disabledInput} value={safeProfile.email} disabled />
+            <input style={styles.disabledInput} value={currentUser?.email || 'No email provided'} disabled />
           </div>
 
           <label style={styles.label}>Alias</label>
           <input 
             style={styles.input} 
-            value={safeProfile.alias} 
+            value={userProfile.alias} 
             onChange={(e) => handleProfileChange('alias', e.target.value)} 
           />
 
           <label style={styles.label}>Level</label>
           <input 
             style={styles.input} 
-            value={safeProfile.level} 
+            value={userProfile.level} 
             onChange={(e) => handleProfileChange('level', e.target.value)} 
           />
 
@@ -222,14 +176,14 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
           <label style={styles.label}>Based In</label>
           <input 
             style={styles.input} 
-            value={safeProfile.life.based} 
+            value={userProfile.life.based} 
             onChange={(e) => handleNestedProfileChange('life', 'based', e.target.value)} 
           />
 
           <label style={styles.label}>Upbringing</label>
           <textarea 
             style={styles.textarea} 
-            value={safeProfile.life.upbringing} 
+            value={userProfile.life.upbringing} 
             onChange={(e) => handleNestedProfileChange('life', 'upbringing', e.target.value)} 
           />
 
@@ -237,21 +191,21 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
           <label style={styles.label}>Job</label>
           <input 
             style={styles.input} 
-            value={safeProfile.work.job} 
+            value={userProfile.work.job} 
             onChange={(e) => handleNestedProfileChange('work', 'job', e.target.value)} 
           />
 
           <h4>Vision</h4>
           <textarea 
             style={styles.textarea} 
-            value={safeProfile.vision} 
+            value={userProfile.vision} 
             onChange={(e) => handleProfileChange('vision', e.target.value)} 
           />
 
           <h4>Special</h4>
           <textarea 
             style={styles.textarea} 
-            value={safeProfile.special} 
+            value={userProfile.special} 
             onChange={(e) => handleProfileChange('special', e.target.value)} 
           />
         </div>
@@ -265,7 +219,7 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
             <div style={styles.preferenceText}>
               <strong style={styles.preferenceTitle}>Show Targeted Ads</strong>
               <span style={styles.preferenceDescription}>
-                {subscription?.isPremium
+                {subscription.isPremium
                   ? "Opt-in to support local businesses."
                   : "Ads are required for Free plans."}
               </span>
@@ -274,19 +228,19 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
             <label style={styles.toggleSwitch}>
               <input
                 type="checkbox"
-                checked={!subscription?.isPremium ? true : safeProfile.preferences.allowAds}
-                disabled={!subscription?.isPremium}
+                checked={!subscription.isPremium ? true : userProfile.preferences.allowAds}
+                disabled={!subscription.isPremium}
                 onChange={(e) => handlePreferenceChange('allowAds', e.target.checked)}
               />
               <span style={{
                 ...styles.toggleSlider,
-                backgroundColor: (!subscription?.isPremium || safeProfile.preferences.allowAds) ? '#FF6347' : '#ccc',
-                cursor: !subscription?.isPremium ? 'not-allowed' : 'pointer',
-                opacity: !subscription?.isPremium ? 0.6 : 1
+                backgroundColor: (!subscription.isPremium || userProfile.preferences.allowAds) ? '#FF6347' : '#ccc',
+                cursor: !subscription.isPremium ? 'not-allowed' : 'pointer',
+                opacity: !subscription.isPremium ? 0.6 : 1
               }}></span>
               <span style={{
                 ...styles.toggleKnob,
-                left: (!subscription?.isPremium || safeProfile.preferences.allowAds) ? '26px' : '4px'
+                left: (!subscription.isPremium || userProfile.preferences.allowAds) ? '26px' : '4px'
               }}></span>
             </label>
           </div>
@@ -301,7 +255,6 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
                     {kycStatus === 'verified' && <strong style={{ color: 'green' }}> Verified ✅</strong>}
                     {kycStatus === 'pending' && <strong style={{ color: 'orange' }}> Pending ⏳</strong>}
                     {kycStatus === 'rejected' && <strong style={{ color: 'red' }}> Rejected ❌</strong>}
-                    {!kycStatus && <strong style={{ color: 'gray' }}> Not Started</strong>}
                 </span>
                 <button style={styles.verifyButton}>
                   {kycStatus === 'verified' ? 'View' : 'Verify Now'}
@@ -322,16 +275,22 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
                 >
                   💬 Send Feedback / Report Bug
                 </button>
-                {currentUser?.isAdmin && (
+                {subscription.isPremium && (
                   <button
-                    onClick={onNavigateToAdmin}
-                    style={styles.helpButton}
+                    onClick={() => alert("Connecting to Priority Support...")}
+                    style={{ ...styles.helpButton, color: '#FF6347', fontWeight: 'bold' }}
                   >
-                    🔒 Admin Dashboard
+                    ⚡ Priority Support (Premium)
                   </button>
                 )}
                 <button
-                  onClick={handleLogout}
+                  onClick={onNavigateToAdmin}
+                  style={styles.helpButton}
+                >
+                  🔒 Admin Dashboard
+                </button>
+                <button
+                  onClick={logoutUser}
                   style={{
                     ...styles.helpButton,
                     background: '#ffebee',
@@ -350,7 +309,7 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
         <div style={styles.tabContent}>
           <h3>Business Account</h3>
 
-          {!subscription?.isPremium ? (
+          {!subscription.isPremium ? (
             <div style={styles.premiumRequired}>
               <p>🔒 Business Accounts are for Premium Members only.</p>
               <button onClick={onNavigateToMembership} style={styles.upgradeButton}>
@@ -359,7 +318,7 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
             </div>
           ) : (
             <>
-              {!safeBusiness.isBusiness ? (
+              {!business.isBusiness ? (
                 <div style={styles.createBusiness}>
                   <p>Create a business profile to start posting ads.</p>
                   {kycStatus !== 'verified' && <p style={styles.verificationWarning}>⚠️ Identity Verification Required</p>}
@@ -420,11 +379,11 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
                   </div>
 
                   <h4>Your Active Ads</h4>
-                  {safeBusiness.ads.length === 0 ? (
+                  {business.ads.length === 0 ? (
                     <p style={styles.noAds}>No ads posted yet.</p>
                   ) : (
                     <ul style={styles.adsList}>
-                      {safeBusiness.ads.map(ad => (
+                      {business.ads.map(ad => (
                         <li key={ad.id} style={styles.adItem}>
                           <img src={ad.image || 'https://via.placeholder.com/80'} alt="Ad" style={styles.adImage} />
                           <div>
@@ -455,8 +414,7 @@ const styles = {
     margin: '0 auto', 
     fontFamily: 'sans-serif', 
     width: '100%', 
-    boxSizing: 'border-box',
-    paddingBottom: '80px' // Space for bottom nav
+    boxSizing: 'border-box' 
   },
   title: { 
     marginBottom: '20px' 
@@ -582,10 +540,7 @@ const styles = {
   },
   toggleSlider: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    inset: 0,
     transition: '.4s',
     borderRadius: '34px'
   },
@@ -614,8 +569,7 @@ const styles = {
   verifyButton: {
     border: 'none',
     background: 'none',
-    color: '#FF6347',
-    cursor: 'pointer'
+    color: '#FF6347'
   },
   helpButtons: {
     display: 'flex',

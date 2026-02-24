@@ -1,18 +1,18 @@
-// services/supabase.js - MAIN SUPABASE CLIENT
+// services/supabase.js
 import { createClient } from '@supabase/supabase-js';
 
-// TODO: Move back to .env after testing
-const supabaseUrl = 'https://gztcwtcxptpypouowosv.supabase.co';
-const supabaseAnonKey = 'sb_publishable_HrB7ZUfnpep15QTofH7n3w_l45iG5J7';
+// Your Supabase URL and anon key
+// These should be in your .env file
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'placeholder-key';
 
-console.log('Using hardcoded Supabase credentials for testing');
+if (!process.env.REACT_APP_SUPABASE_URL || !process.env.REACT_APP_SUPABASE_ANON_KEY) {
+  console.warn('Supabase URL or Anon Key is missing. Using placeholder values.');
+}
 
-// Create the Supabase client
+// Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Export auth and storage helpers
+// Helper functions for common operations
 export const auth = supabase.auth;
 export const storage = supabase.storage;
-
-// Default export for convenience
-export default supabase;
