@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useUser } from '../context/UserContext';
+import Logo from './Logo';
 
 export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
   const [email, setEmail] = useState('');
@@ -18,7 +19,7 @@ export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
 
   return (
     <div style={{ padding: '40px', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
-      <h1>Peach 🍑</h1>
+      <Logo />
       <h2>Login</h2>
       <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         <input
@@ -66,7 +67,7 @@ export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
 
   return (
     <div style={{ padding: '40px', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
-      <h1>Peach 🍑</h1>
+      <Logo />
       <h2>Create Account</h2>
       <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         <input
