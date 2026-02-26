@@ -1,41 +1,54 @@
-# Database Schema Design
-
-## Users Table
-| Column | Type | Description |
-|---|---|---|
-| `id` | UUID | Primary Key |
-| `email` | VARCHAR | Unique, strictly email auth |
-| `is_verified` | BOOLEAN | Email verification status |
-| `alias` | VARCHAR | e.g., "Nurse_Peachy99" |
-| `level` | ENUM | 'Year 1', 'Year 2', 'Year 3', 'Intern' |
-| `pits_balance` | INTEGER | Current balance of Pits (Starts at 25) |
-| `created_at` | TIMESTAMP | Account creation time |
+# Database Schema Design (Production Ready)
 
 ## Profiles Table
 | Column | Type | Description |
 |---|---|---|
-| `user_id` | UUID | Foreign Key to Users |
-| `real_name` | VARCHAR | Hidden until ripped |
-| `photo_url` | VARCHAR | Blurred until ripped |
-| `location_lat` | FLOAT | Geolocation latitude |
-| `location_long` | FLOAT | Geolocation longitude |
-| `city` | VARCHAR | e.g., Sapele, Warri, Asaba, Ughelli |
-| `school_hospital` | VARCHAR | Associated institution |
+| `id` | UUID | Primary Key (matches Supabase Auth ID) |
+| `email` | VARCHAR | User email |
+| `username` | VARCHAR | Unique Peach identifier |
+| `alias` | VARCHAR | Display name (e.g., "Golden Professional") |
+| `profession` | VARCHAR | User's profession (e.g., "Nursing", "Tech") |
+| `level` | VARCHAR | Experience level (e.g., "Intern", "Senior Professional") |
+| `job` | VARCHAR | Specific job title |
+| `photo_url` | VARCHAR | Profile image URL |
+| `is_premium` | BOOLEAN | Premium membership status |
+| `daily_unripes` | INTEGER | Remaining free unripes/ripens for the day |
+| `onboarding_complete` | BOOLEAN | Whether the user finished onboarding |
+| `kyc_status` | VARCHAR | 'not_verified', 'pending', 'verified', 'rejected' |
+| `is_business` | BOOLEAN | Whether user has a business account |
+| `ads` | JSONB | Array of ads posted by the user |
+| `basics` | JSONB | Interests and media preferences |
+| `life` | JSONB | Based location and upbringing info |
+| `relationships` | JSONB | Values and what they're looking for |
+| `vision` | TEXT | Future vision |
+| `special` | TEXT | What makes them special |
+| `payment_history` | JSONB | History of Paystack transactions |
+| `expires_at` | TIMESTAMP | Premium subscription expiry |
+| `created_at` | TIMESTAMP | Account creation time |
+| `updated_at` | TIMESTAMP | Last profile update |
 
-## Preferences Table (Likes/Dislikes)
+## Ripened Users Table
 | Column | Type | Description |
 |---|---|---|
-| `user_id` | UUID | Foreign Key to Users |
-| `sweet_peaches` | JSONB | Array of selected Likes (e.g., ["Night shifts", "Skincare"]) |
-| `bruised_peaches` | JSONB | Array of selected Dislikes (e.g., ["8 AM lectures"]) |
+| `id` | BIGINT | Primary Key |
+| `user_id` | UUID | User who did the ripening |
+| `target_user_id` | UUID | User who was ripened |
+| `created_at` | TIMESTAMP | When it happened |
 
 ## Matches Table
 | Column | Type | Description |
 |---|---|---|
 | `id` | UUID | Primary Key |
-| `user_a_id` | UUID | User A |
-| `user_b_id` | UUID | User B |
-| `compatibility_score` | INTEGER | 0-100 score |
-| `is_ripped_by_a` | BOOLEAN | Has A paid to see B? |
-| `is_ripped_by_b` | BOOLEAN | Has B paid to see A? |
-| `status` | ENUM | 'pending', 'accepted', 'rejected' |
+| `user_id_1` | UUID | Foreign Key to Profiles |
+| `user_id_2` | UUID | Foreign Key to Profiles |
+| `created_at` | TIMESTAMP | When the match occurred |
+
+## Messages Table
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID | Primary Key |
+| `match_id` | UUID | Foreign Key to Matches |
+| `sender_id` | UUID | Foreign Key to Profiles |
+| `content` | TEXT | Message text |
+| `read` | BOOLEAN | Read status |
+| `created_at` | TIMESTAMP | Sent time |

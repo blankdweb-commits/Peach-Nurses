@@ -8,6 +8,7 @@ const Onboarding = () => {
     username: '',
     alias: '',
     level: '',
+    profession: '',
     based: '',
     upbringing: '',
     job: '',
@@ -24,7 +25,8 @@ const Onboarding = () => {
   const [usernameMessage, setUsernameMessage] = useState('');
 
   const LOCATIONS = ['Asaba', 'Warri', 'Ughelli', 'Sapele', 'Agbor', 'Okpanam', 'Abraka', 'Patani'];
-  const LEVELS = ['100L', '200L', '300L', '400L', '500L', 'Intern', 'Staff Nurse', 'Senior Nurse'];
+  const LEVELS = ['Student', 'Intern', 'Junior Professional', 'Senior Professional', 'Entrepreneur', 'Freelancer'];
+  const PROFESSIONS = ['Nursing', 'Medicine', 'Engineering', 'Law', 'Accounting', 'Tech', 'Education', 'Business', 'Arts', 'Other'];
 
   // Function to check username availability (simulated API call)
   const checkUsernameAvailability = async (username) => {
@@ -190,7 +192,26 @@ const Onboarding = () => {
         </div>
 
         <div style={styles.formGroup}>
-          <label style={styles.label}>Your level *</label>
+          <label style={styles.label}>Your Profession *</label>
+          <div style={styles.optionsGrid}>
+            {PROFESSIONS.map(prof => (
+              <button
+                key={prof}
+                type="button"
+                style={{
+                  ...styles.optionBtn,
+                  ...(formData.profession === prof ? styles.selectedOption : {})
+                }}
+                onClick={() => handleInputChange('profession', prof)}
+              >
+                {prof}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={styles.formGroup}>
+          <label style={styles.label}>Your Experience Level *</label>
           <div style={styles.optionsGrid}>
             {LEVELS.map(level => (
               <button
@@ -247,12 +268,12 @@ const Onboarding = () => {
         </div>
 
         <div style={styles.formGroup}>
-          <label style={styles.label}>What do you do? *</label>
+          <label style={styles.label}>Specific Job Title *</label>
           <input
             type="text"
             value={formData.job}
             onChange={(e) => handleInputChange('job', e.target.value)}
-            placeholder="e.g., Nurse, Student, Entrepreneur"
+            placeholder="e.g., Pediatric Nurse, Frontend Developer, CEO"
             style={styles.input}
           />
         </div>
@@ -380,6 +401,7 @@ const Onboarding = () => {
     return formData.username && 
            formData.username.length >= 3 && 
            formData.level && 
+           formData.profession &&
            usernameAvailable === true;
   };
 

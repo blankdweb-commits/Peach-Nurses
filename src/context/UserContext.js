@@ -225,6 +225,16 @@ export const UserProvider = ({ children }) => {
     return data.user;
   };
 
+  const loginWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+    if (error) throw error;
+  };
+
   const logoutUser = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
@@ -486,6 +496,7 @@ export const UserProvider = ({ children }) => {
     loading,
     loginUser,
     signupUser,
+    loginWithGoogle,
     logoutUser,
     updateUserProfile,
     setOnboardingComplete: completeOnboarding,

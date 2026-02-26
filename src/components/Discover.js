@@ -405,7 +405,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
       <div style={styles.loadingContainer}>
         <div style={styles.loadingIcon}>🍑</div>
         <h2 style={styles.loadingTitle}>Finding Peaches Nearby...</h2>
-        <p style={styles.loadingText}>Looking for nurses in your area</p>
+        <p style={styles.loadingText}>Looking for connections in your area</p>
       </div>
     );
   }
@@ -439,7 +439,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
         <div style={styles.emptyIcon}>🍑</div>
         <h2 style={styles.emptyTitle}>No more peaches nearby!</h2>
         <p style={styles.emptyText}>
-          We've run out of potential matches in your area. Check back later or adjust your preferences.
+          We've run out of potential matches in your area. Check back later to discover new professionals!
         </p>
         <div style={styles.emptyButtons}>
           <button 
@@ -545,9 +545,14 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
             <div style={styles.cardOverlay}>
               <div style={styles.cardHeader}>
                 <div>
-                  <h1 style={styles.cardName}>{currentMatch.alias}</h1>
+                  <h1 style={styles.cardName}>
+                    {currentMatch.alias}
+                    {(currentMatch.profession === 'Nursing' || (currentMatch.job && currentMatch.job.toLowerCase().includes('nurse'))) &&
+                      <span style={{ marginLeft: '10px', fontSize: '1.2rem', verticalAlign: 'middle' }} title="Healthcare Hero">🏥✨</span>
+                    }
+                  </h1>
                   <div style={styles.cardInfo}>
-                    {currentMatch.level} • {currentMatch.distance ? `${currentMatch.distance}km away` : 'Location hidden'}
+                    {currentMatch.level} {currentMatch.profession ? `• ${currentMatch.profession}` : ''} • {currentMatch.distance ? `${currentMatch.distance}km away` : 'Location hidden'}
                   </div>
                 </div>
                 <div style={styles.scoreBadge}>
