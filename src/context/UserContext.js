@@ -101,22 +101,23 @@ export const UserProvider = ({ children }) => {
   };
 
   const fetchUserMatches = async (userId) => {
+    // Try to fetch matches with profile information
+    // We use a broader select first to be safe with relationship names
     const { data } = await supabase
       .from('matches')
-      .select('*, profiles!matches_user_id_2_fkey(*)')
-      .eq('user_id_1', userId);
+      .select(`
+        *,
+        user1:profiles!matches_user_id_1_fkey(*),
+        user2:profiles!matches_user_id_2_fkey(*)
+      `)
+      .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
 
-    // Also fetch where user is user_id_2
-    const { data: data2 } = await supabase
-      .from('matches')
-      .select('*, profiles!matches_user_id_1_fkey(*)')
-      .eq('user_id_2', userId);
+    if (data) {
+      const allMatches = data.map(m => ({
+        ...m,
+        matchedUser: m.user_id_1 === userId ? m.user2 : m.user1
+      })).filter(m => m.matchedUser); // Ensure matchedUser exists
 
-    if (data || data2) {
-      const allMatches = [
-        ...(data || []).map(m => ({ ...m, matchedUser: m.profiles })),
-        ...(data2 || []).map(m => ({ ...m, matchedUser: m.profiles }))
-      ];
       setMatches(allMatches);
 
       // Setup real-time for each match chat
@@ -125,6 +126,21 @@ export const UserProvider = ({ children }) => {
         fetchMessages(match.id);
       });
     }
+
+    // Subscribe to new matches
+    supabase
+      .channel(`matches:${userId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'matches'
+      }, payload => {
+        const newMatch = payload.new;
+        if (newMatch.user_id_1 === userId || newMatch.user_id_2 === userId) {
+          fetchUserMatches(userId); // Refresh matches
+        }
+      })
+      .subscribe();
   };
 
   const fetchUserRipened = async (userId) => {
@@ -136,6 +152,20 @@ export const UserProvider = ({ children }) => {
     if (data) {
       setRipenedUsers(data.map(r => r.target_user_id));
     }
+
+    // Subscribe to new ripenings (who ripened me)
+    supabase
+      .channel(`ripened:${userId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'ripened_users',
+        filter: `target_user_id=eq.${userId}`
+      }, payload => {
+        // Someone ripened me! This might trigger the "See who likes you" view update
+        // We don't necessarily need to refresh everything, but we could
+      })
+      .subscribe();
   };
 
   const fetchMessages = async (matchId) => {

@@ -21,29 +21,6 @@ export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
     <div style={{ padding: '40px', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
       <Logo />
       <h2>Login</h2>
-      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-        />
-        <button type="submit" style={{ padding: '12px', background: '#FF6347', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', fontWeight: 'bold' }}>Login</button>
-      </form>
-
-      <div style={{ margin: '20px 0', display: 'flex', alignItems: 'center' }}>
-        <div style={{ flex: 1, height: '1px', background: '#eee' }}></div>
-        <span style={{ padding: '0 10px', color: '#999', fontSize: '0.9rem' }}>OR</span>
-        <div style={{ flex: 1, height: '1px', background: '#eee' }}></div>
-      </div>
 
       <button
         onClick={loginWithGoogle}
@@ -59,12 +36,37 @@ export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '10px'
+          gap: '10px',
+          marginBottom: '20px'
         }}
       >
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" style={{ width: '18px' }} />
         Continue with Google
       </button>
+
+      <div style={{ margin: '20px 0', display: 'flex', alignItems: 'center' }}>
+        <div style={{ flex: 1, height: '1px', background: '#eee' }}></div>
+        <span style={{ padding: '0 10px', color: '#999', fontSize: '0.9rem' }}>OR</span>
+        <div style={{ flex: 1, height: '1px', background: '#eee' }}></div>
+      </div>
+
+      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
+        />
+        <button type="submit" style={{ padding: '12px', background: '#FF6347', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', fontWeight: 'bold' }}>Login with Email</button>
+      </form>
 
       <div style={{ marginTop: '20px' }}>
         <p>New to Peach?</p>
@@ -97,29 +99,6 @@ export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
     <div style={{ padding: '40px', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
       <Logo />
       <h2>Create Account</h2>
-      <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-        />
-        <input
-          type="password"
-          placeholder="Create Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-        />
-        <button type="submit" style={{ padding: '12px', background: '#FF6347', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', fontWeight: 'bold' }}>Sign Up</button>
-      </form>
-
-      <div style={{ margin: '20px 0', display: 'flex', alignItems: 'center' }}>
-        <div style={{ flex: 1, height: '1px', background: '#eee' }}></div>
-        <span style={{ padding: '0 10px', color: '#999', fontSize: '0.9rem' }}>OR</span>
-        <div style={{ flex: 1, height: '1px', background: '#eee' }}></div>
-      </div>
 
       <button
         onClick={loginWithGoogle}
@@ -135,12 +114,37 @@ export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '10px'
+          gap: '10px',
+          marginBottom: '20px'
         }}
       >
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" style={{ width: '18px' }} />
         Continue with Google
       </button>
+
+      <div style={{ margin: '20px 0', display: 'flex', alignItems: 'center' }}>
+        <div style={{ flex: 1, height: '1px', background: '#eee' }}></div>
+        <span style={{ padding: '0 10px', color: '#999', fontSize: '0.9rem' }}>OR</span>
+        <div style={{ flex: 1, height: '1px', background: '#eee' }}></div>
+      </div>
+
+      <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
+        />
+        <input
+          type="password"
+          placeholder="Create Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
+        />
+        <button type="submit" style={{ padding: '12px', background: '#FF6347', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', fontWeight: 'bold' }}>Sign Up with Email</button>
+      </form>
 
       <div style={{ marginTop: '20px' }}>
         <p>Already have an account?</p>

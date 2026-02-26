@@ -11,8 +11,10 @@ import Likes from './components/Likes';
 import Onboarding from './components/Onboarding';
 import { Login, Signup } from './components/Auth';
 import BottomNav from './components/BottomNav';
+import Logo from './components/Logo';
 import './components/Navigation.css';
 import { campaignService } from './services/campaignService';
+import { SUPABASE_CONFIGURED } from './services/supabase';
 
 function AppContent() {
   const { currentUser, onboardingComplete, userProfile } = useUser();
@@ -95,6 +97,31 @@ function AppContent() {
   );
 
   const showNav = ['discover', 'chatList', 'likes', 'membership', 'settings'].includes(currentView);
+
+  if (!SUPABASE_CONFIGURED) {
+      return (
+          <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100vh',
+              padding: '20px',
+              textAlign: 'center',
+              backgroundColor: '#fff'
+          }}>
+              <Logo />
+              <h2 style={{ color: '#FF6347' }}>Configuration Missing</h2>
+              <p style={{ maxWidth: '400px', color: '#666' }}>
+                  The app is missing its connection to Supabase.
+                  Please ensure <strong>REACT_APP_SUPABASE_URL</strong> and <strong>REACT_APP_SUPABASE_ANON_KEY</strong> are set in your environment variables.
+              </p>
+              <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '10px', fontSize: '0.9rem', color: '#888' }}>
+                  If you are the developer, check your .env file or Vercel dashboard.
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="app-container">

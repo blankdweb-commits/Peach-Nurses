@@ -70,7 +70,7 @@ export const wingmanService = {
       const activity = getRandom(commonFun);
       potentialOpeners.push(
         `So, be honest... who's better at ${activity}, you or me? 😉`,
-        `I see we both enjoy ${activity}. Is there a good spot in ${mLife.based} for that?`,
+        `I see we both enjoy ${activity}. Is there a good spot in ${mLife?.based} for that?`,
         `Okay, ${alias}, scale of 1-10, how obsessed are you with ${activity}? because I'm at an 11.`
       );
     }
