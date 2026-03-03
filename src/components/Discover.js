@@ -228,7 +228,7 @@ const Discover = ({ onNavigateToStore, onNavigateToSettings, onNavigateToChats }
       let filteredMatches = profiles.filter(user => !ripenedUsers.includes(user.id));
       
       // If no matches from DB, fallback to MOCK_USERS for demo/production mood if DB is empty
-      if (filteredMatches.length === 0 && profiles.length === 0) {
+      if (filteredMatches.length === 0) {
         filteredMatches = MOCK_USERS.filter(user =>
           currentUser && user.id !== currentUser.id && !ripenedUsers.includes(user.id)
         );

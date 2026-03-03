@@ -15,8 +15,6 @@
 | `daily_unripes` | INTEGER | Remaining free unripes/ripens for the day |
 | `onboarding_complete` | BOOLEAN | Whether the user finished onboarding |
 | `kyc_status` | VARCHAR | 'not_verified', 'pending', 'verified', 'rejected' |
-| `is_business` | BOOLEAN | Whether user has a business account |
-| `ads` | JSONB | Array of ads posted by the user |
 | `basics` | JSONB | Interests and media preferences |
 | `life` | JSONB | Based location and upbringing info |
 | `relationships` | JSONB | Values and what they're looking for |
@@ -26,6 +24,17 @@
 | `expires_at` | TIMESTAMP | Premium subscription expiry |
 | `created_at` | TIMESTAMP | Account creation time |
 | `updated_at` | TIMESTAMP | Last profile update |
+
+## Ads Table (Admin Only Write)
+| Column | Type | Description |
+|---|---|---|
+| `id` | UUID | Primary Key |
+| `title` | VARCHAR | Ad title |
+| `headline` | VARCHAR | Catchy headline |
+| `content` | TEXT | Detailed description |
+| `price` | VARCHAR | Offer price/discount |
+| `image_url` | VARCHAR | Link to image in storage bucket |
+| `created_at` | TIMESTAMP | Creation time |
 
 ## Ripened Users Table
 | Column | Type | Description |
@@ -52,3 +61,8 @@
 | `content` | TEXT | Message text |
 | `read` | BOOLEAN | Read status |
 | `created_at` | TIMESTAMP | Sent time |
+
+## Storage Buckets
+| Name | Access | Description |
+|---|---|---|
+| `peach-bucket` | Public Read / Authenticated Write | Avatars and Ad images |

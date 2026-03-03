@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
+import { uploadFile } from '../services/supabase';
 
 const Onboarding = () => {
   const { updateUserProfile, setOnboardingComplete } = useUser();
@@ -95,29 +96,38 @@ const Onboarding = () => {
     });
   };
 
+  const [avatarFile, setAvatarFile] = useState(null);
+
   const handleNext = async () => {
     if (currentStep < 4) {
       setCurrentStep(prev => prev + 1);
     } else {
-      // FIXED: Save all profile data and complete onboarding
-      const completeProfile = {
-        ...formData,
-        photo_url: `https://picsum.photos/400/600?random=${Math.random()}`,
-        basics: {
-          fun: formData.fun,
-          media: formData.media
-        },
-        relationships: {
-          values: formData.values,
-          lookingFor: formData.lookingFor
-        },
-        life: {
-          based: formData.based,
-          upbringing: formData.upbringing
-        }
-      };
+      let photo_url = `https://picsum.photos/400/600?random=${Math.random()}`;
       
       try {
+        if (avatarFile) {
+          const path = `avatars/${Date.now()}_${avatarFile.name}`;
+          photo_url = await uploadFile('peach-bucket', path, avatarFile);
+        }
+
+        // FIXED: Save all profile data and complete onboarding
+        const completeProfile = {
+          ...formData,
+          photo_url,
+          basics: {
+            fun: formData.fun,
+            media: formData.media
+          },
+          relationships: {
+            values: formData.values,
+            lookingFor: formData.lookingFor
+          },
+          life: {
+            based: formData.based,
+            upbringing: formData.upbringing
+          }
+        };
+
         // Save to context
         await updateUserProfile(completeProfile);
 
@@ -353,6 +363,36 @@ const Onboarding = () => {
     return (
       <div style={styles.stepContainer}>
         <h2>Final touches</h2>
+
+        <div style={styles.formGroup}>
+          <label style={styles.label}>Profile Picture</label>
+          <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+            <div style={{
+              width: '120px',
+              height: '120px',
+              borderRadius: '50%',
+              backgroundColor: '#f0f0f0',
+              margin: '0 auto 10px',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '2px dashed #ddd'
+            }}>
+              {avatarFile ? (
+                <img src={URL.createObjectURL(avatarFile)} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: '3rem' }}>🍑</span>
+              )}
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setAvatarFile(e.target.files[0])}
+              style={{ fontSize: '0.8rem' }}
+            />
+          </div>
+        </div>
         
         <div style={styles.formGroup}>
           <label style={styles.label}>What are you looking for? *</label>

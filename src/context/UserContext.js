@@ -29,7 +29,6 @@ export const UserProvider = ({ children }) => {
   const [matches, setMatches] = useState([]);
   const [chats, setChats] = useState({});
   const [kycStatus, setKycStatus] = useState('not_verified');
-  const [business, setBusiness] = useState({ isBusiness: false, ads: [] });
   const [potentialMatches, setPotentialMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -83,10 +82,6 @@ export const UserProvider = ({ children }) => {
           paymentHistory: data.payment_history || []
         });
         setKycStatus(data.kyc_status || 'not_verified');
-        setBusiness({
-          isBusiness: data.is_business || false,
-          ads: data.ads || []
-        });
 
         // Fetch additional data
         await fetchUserMatches(userId);
@@ -300,21 +295,6 @@ export const UserProvider = ({ children }) => {
   const updateKYC = async (status) => {
     await updateUserProfile({ kyc_status: status });
     setKycStatus(status);
-  };
-
-  const createBusinessAccount = async () => {
-    if (!subscription.isPremium) return false;
-    await updateUserProfile({ is_business: true });
-    setBusiness(prev => ({ ...prev, isBusiness: true }));
-    return true;
-  };
-
-  const postAd = async (adData, reference) => {
-    // In real app, verify payment reference first
-    const newAds = [...business.ads, { ...adData, id: Date.now(), reference }];
-    await updateUserProfile({ ads: newAds });
-    setBusiness(prev => ({ ...prev, ads: newAds }));
-    return true;
   };
 
   const submitFeedback = async (feedback) => {
@@ -538,9 +518,6 @@ export const UserProvider = ({ children }) => {
     banUser,
     kycStatus,
     updateKYC,
-    business,
-    createBusinessAccount,
-    postAd,
     submitFeedback,
     ripenMatch,
     sendMessage,

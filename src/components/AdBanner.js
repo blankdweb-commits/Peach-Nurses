@@ -1,27 +1,45 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../services/supabase';
 
 const AdBanner = ({ onAdComplete }) => {
-  // Use last posted ad from business logic or random mock ad
-  // const { business } = useUser();
-
-  // Logic to pick an ad:
-  // In a real app, this would fetch from an ad server.
-  // Here, we can look at the mocked business ads or fallback.
-  // Since we are viewing as a user, we should see OTHER people's ads.
-  // For demo, let's use a mock ad with the new structure.
-
-  const ad = {
-      title: "Sapele Scrub Shop",
-      headline: "50% Off All Scrubs!",
-      description: "Best quality scrubs for nurses. Located at Market Road.",
-      price: "₦5,000",
-      image: "https://via.placeholder.com/300x200?text=Scrubs+Sale"
-  };
+  const [ad, setAd] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate ad duration
-    // Allow user to close manually for better UX
+    const fetchRandomAd = async () => {
+      try {
+        const { data, error } = await supabase.from('ads').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const randomAd = data[Math.floor(Math.random() * data.length)];
+          setAd({
+            title: randomAd.title,
+            headline: randomAd.headline,
+            description: randomAd.content,
+            price: randomAd.price,
+            image: randomAd.image_url
+          });
+        } else {
+            // Fallback
+            setAd({
+                title: "Peach Premium",
+                headline: "Go Ad-Free Today!",
+                description: "Get unlimited ripens and see who likes you.",
+                price: "₦2,500/mo",
+                image: "https://via.placeholder.com/300x200?text=Peach+Premium"
+            });
+        }
+      } catch (err) {
+        console.error('Error fetching ad:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRandomAd();
   }, []);
+
+  if (loading || !ad) return null;
 
   return (
     <div style={{

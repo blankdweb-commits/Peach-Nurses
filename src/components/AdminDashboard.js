@@ -1,16 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '../context/AdminContext';
 import { useUser } from '../context/UserContext';
+import { supabase, uploadFile } from '../services/supabase';
 
 const AdminDashboard = ({ onBack }) => {
   const { isAdmin, loginAdmin, logoutAdmin, deleteUser, banUser } = useAdmin();
   const { potentialMatches, subscription, grantPremium, revokePremium, fetchAllProfiles } = useUser();
 
+  const [ads, setAds] = useState([]);
+  const [newAd, setNewAd] = useState({ title: '', headline: '', price: '', content: '' });
+  const [adImage, setAdImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
   useEffect(() => {
     if (isAdmin) {
       fetchAllProfiles();
+      fetchAds();
     }
   }, [isAdmin, fetchAllProfiles]);
+
+  const fetchAds = async () => {
+    const { data } = await supabase.from('ads').select('*').order('created_at', { ascending: false });
+    if (data) setAds(data);
+  };
+
+  const handleCreateAd = async (e) => {
+    e.preventDefault();
+    if (!adImage) return alert('Please select an image');
+    setUploading(true);
+
+    try {
+      const path = `ads/${Date.now()}_${adImage.name}`;
+      const imageUrl = await uploadFile('peach-bucket', path, adImage);
+
+      const { error } = await supabase.from('ads').insert({
+        ...newAd,
+        image_url: imageUrl
+      });
+
+      if (error) throw error;
+
+      setNewAd({ title: '', headline: '', price: '', content: '' });
+      setAdImage(null);
+      fetchAds();
+      alert('Ad created successfully!');
+    } catch (error) {
+      alert('Error creating ad: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteAd = async (id) => {
+    if (!window.confirm('Delete this ad?')) return;
+    const { error } = await supabase.from('ads').delete().eq('id', id);
+    if (!error) fetchAds();
+  };
+
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
@@ -134,11 +180,48 @@ const AdminDashboard = ({ onBack }) => {
         </table>
       </div>
 
+      <hr style={{ margin: '40px 0' }} />
+
+      <h3>Manage Ads 📢</h3>
+      <div style={{ background: '#f9f9f9', padding: '20px', borderRadius: '10px', marginBottom: '30px' }}>
+        <h4>Create New Ad</h4>
+        <form onSubmit={handleCreateAd} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <input required placeholder="Ad Title" value={newAd.title} onChange={e => setNewAd({...newAd, title: e.target.value})} style={styles.input} />
+          <input required placeholder="Headline" value={newAd.headline} onChange={e => setNewAd({...newAd, headline: e.target.value})} style={styles.input} />
+          <input required placeholder="Price/Offer" value={newAd.price} onChange={e => setNewAd({...newAd, price: e.target.value})} style={styles.input} />
+          <textarea required placeholder="Description" value={newAd.content} onChange={e => setNewAd({...newAd, content: e.target.value})} style={styles.textarea} />
+          <input type="file" accept="image/*" onChange={e => setAdImage(e.target.files[0])} />
+          <button type="submit" disabled={uploading} style={{ ...styles.button, background: '#FF6347' }}>
+            {uploading ? 'Creating...' : 'Create Ad'}
+          </button>
+        </form>
+      </div>
+
+      <h4>Existing Ads</h4>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
+        {ads.map(ad => (
+          <div key={ad.id} style={{ border: '1px solid #eee', borderRadius: '10px', overflow: 'hidden' }}>
+            <img src={ad.image_url} alt={ad.title} style={{ width: '100%', height: '120px', objectFit: 'cover' }} />
+            <div style={{ padding: '10px' }}>
+              <strong>{ad.title}</strong>
+              <div style={{ fontSize: '0.8rem', color: '#666' }}>{ad.headline}</div>
+              <button onClick={() => handleDeleteAd(ad.id)} style={{ marginTop: '10px', color: 'red', border: 'none', background: 'none', cursor: 'pointer' }}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div style={{ marginTop: '40px', textAlign: 'center' }}>
         <button onClick={onBack} style={{ padding: '10px 20px', background: '#333', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', width: '100%', maxWidth: '200px' }}>Back to App</button>
       </div>
     </div>
   );
+};
+
+const styles = {
+    input: { padding: '10px', borderRadius: '5px', border: '1px solid #ccc' },
+    textarea: { padding: '10px', borderRadius: '5px', border: '1px solid #ccc', minHeight: '80px' },
+    button: { padding: '12px', border: 'none', borderRadius: '25px', color: 'white', fontWeight: 'bold', cursor: 'pointer' }
 };
 
 export default AdminDashboard;

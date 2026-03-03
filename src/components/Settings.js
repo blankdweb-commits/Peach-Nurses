@@ -1,21 +1,12 @@
 import React, { useState } from 'react';
 import { useUser } from '../context/UserContext';
-// Remove unused import
-// import { mockBackend } from '../services/mockBackend';
+import { uploadFile } from '../services/supabase';
 import FeedbackHandler from './FeedbackHandler';
 import KYCVerification from './KYCVerification';
 
 const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
-  const { currentUser, userProfile, updateUserProfile, subscription, business, createBusinessAccount, postAd, setOnboardingComplete, submitFeedback, logoutUser, kycStatus } = useUser();
+  const { currentUser, userProfile, updateUserProfile, subscription, setOnboardingComplete, submitFeedback, logoutUser, kycStatus } = useUser();
   const [activeTab, setActiveTab] = useState('profile');
-  const [adForm, setAdForm] = useState({
-    title: '',
-    content: '',
-    price: '',
-    image: null,
-    headline: ''
-  });
-  const [processingAd, setProcessingAd] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showKYC, setShowKYC] = useState(false);
 
@@ -32,11 +23,16 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
     });
   };
 
-  const handleAvatarUpload = (e) => {
+  const handleAvatarUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const fakeUrl = URL.createObjectURL(file);
-      updateUserProfile({ photoUrl: fakeUrl });
+      try {
+        const path = `avatars/${currentUser.id}_${Date.now()}`;
+        const publicUrl = await uploadFile('peach-bucket', path, file);
+        updateUserProfile({ photo_url: publicUrl });
+      } catch (error) {
+        alert("Upload failed: " + error.message);
+      }
     }
   };
 
@@ -48,47 +44,6 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
     });
   };
 
-  const handleAdImageUpload = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-          setAdForm({ ...adForm, image: URL.createObjectURL(file) });
-      }
-  };
-
-  const handleCreateBusiness = () => {
-    if (kycStatus !== 'verified') {
-        setShowKYC(true);
-        return;
-    }
-
-    if (createBusinessAccount()) {
-      alert("Business Account Created! You can now post ads.");
-    } else {
-      alert("Error: Ensure you are a Premium member.");
-    }
-  };
-
-  const handlePostAd = async (e) => {
-    e.preventDefault();
-    if (!adForm.image) {
-        alert("Please upload an image for your ad.");
-        return;
-    }
-    setProcessingAd(true);
-
-    setTimeout(async () => {
-      const fakeRef = "ad_ref_" + Date.now();
-      const success = await postAd(adForm, fakeRef);
-
-      setProcessingAd(false);
-      if (success) {
-        setAdForm({ title: '', content: '', price: '', image: null, headline: '' });
-        alert("Ad Posted Successfully! (₦1,200 deducted)");
-      } else {
-        alert("Payment Failed.");
-      }
-    }, 2000);
-  };
 
   const handleRestartTutorial = () => {
     if (window.confirm("Restart the tutorial? This will take you back to onboarding.")) {
@@ -122,15 +77,6 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
           onClick={() => setActiveTab('preferences')}
         >
           Preferences
-        </div>
-        <div 
-          style={{
-            ...styles.tab,
-            ...(activeTab === 'business' ? styles.activeTab : {})
-          }} 
-          onClick={() => setActiveTab('business')}
-        >
-          Business
         </div>
       </div>
 
@@ -305,102 +251,6 @@ const Settings = ({ onNavigateToMembership, onNavigateToAdmin }) => {
         </div>
       )}
 
-      {activeTab === 'business' && (
-        <div style={styles.tabContent}>
-          <h3>Business Account</h3>
-
-          {!subscription.isPremium ? (
-            <div style={styles.premiumRequired}>
-              <p>🔒 Business Accounts are for Premium Members only.</p>
-              <button onClick={onNavigateToMembership} style={styles.upgradeButton}>
-                Upgrade to Premium
-              </button>
-            </div>
-          ) : (
-            <>
-              {!business.isBusiness ? (
-                <div style={styles.createBusiness}>
-                  <p>Create a business profile to start posting ads.</p>
-                  {kycStatus !== 'verified' && <p style={styles.verificationWarning}>⚠️ Identity Verification Required</p>}
-                  <button onClick={handleCreateBusiness} style={styles.createButton}>
-                    Create Business Account
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <div style={styles.adFormSection}>
-                    <h4>Post a New Ad (₦1,200)</h4>
-                    <form onSubmit={handlePostAd}>
-                      <input
-                        placeholder="Ad Title (e.g. Clinic Discount)"
-                        style={styles.input}
-                        value={adForm.title}
-                        onChange={(e) => setAdForm({ ...adForm, title: e.target.value })}
-                        required
-                      />
-                      <input
-                        placeholder="Catchy Headline (Capture)"
-                        style={styles.input}
-                        value={adForm.headline}
-                        onChange={(e) => setAdForm({ ...adForm, headline: e.target.value })}
-                        required
-                      />
-                      <input
-                        placeholder="Price / Offer (e.g. 50% Off)"
-                        style={styles.input}
-                        value={adForm.price}
-                        onChange={(e) => setAdForm({ ...adForm, price: e.target.value })}
-                        required
-                      />
-                      <textarea
-                        placeholder="Description"
-                        style={styles.textarea}
-                        value={adForm.content}
-                        onChange={(e) => setAdForm({ ...adForm, content: e.target.value })}
-                        required
-                      />
-                      <div style={styles.imageUpload}>
-                          <label style={styles.label}>Ad Image</label>
-                          <input type="file" accept="image/*" onChange={handleAdImageUpload} />
-                          {adForm.image && <img src={adForm.image} alt="Preview" style={styles.imagePreview} />}
-                      </div>
-
-                      <button
-                        type="submit"
-                        style={{
-                          ...styles.submitButton,
-                          opacity: processingAd ? 0.7 : 1
-                        }}
-                        disabled={processingAd}
-                      >
-                        {processingAd ? 'Processing...' : 'Pay & Post Ad'}
-                      </button>
-                    </form>
-                  </div>
-
-                  <h4>Your Active Ads</h4>
-                  {business.ads.length === 0 ? (
-                    <p style={styles.noAds}>No ads posted yet.</p>
-                  ) : (
-                    <ul style={styles.adsList}>
-                      {business.ads.map(ad => (
-                        <li key={ad.id} style={styles.adItem}>
-                          <img src={ad.image || 'https://via.placeholder.com/80'} alt="Ad" style={styles.adImage} />
-                          <div>
-                              <strong>{ad.title}</strong>
-                              <div style={styles.adHeadline}>{ad.headline}</div>
-                              <div style={styles.adPrice}>{ad.price}</div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
 
       {showFeedback && <FeedbackHandler onClose={() => setShowFeedback(false)} onSubmit={submitFeedback} />}
     </div>

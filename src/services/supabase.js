@@ -23,3 +23,15 @@ export const SUPABASE_CONFIGURED = isConfigured;
 // Helper functions for common operations
 export const auth = supabase.auth;
 export const storage = supabase.storage;
+
+// Storage Helper
+export const uploadFile = async (bucket, path, file) => {
+  const { data, error } = await storage.from(bucket).upload(path, file, {
+    upsert: true
+  });
+
+  if (error) throw error;
+
+  const { data: { publicUrl } } = storage.from(bucket).getPublicUrl(data.path);
+  return publicUrl;
+};
