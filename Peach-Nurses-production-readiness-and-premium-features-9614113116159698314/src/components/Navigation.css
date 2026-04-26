@@ -3,12 +3,12 @@
   bottom: 0;
   left: 0;
   width: 100%;
-  background-color: white;
+  background-color: var(--secondary-bg);
   display: flex;
   justify-content: space-around;
   align-items: center;
   padding: 10px 0;
-  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+  border-top: 1px solid var(--glass-border);
   z-index: 1000;
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -19,15 +19,14 @@
   align-items: center;
   border: none;
   background: none;
-  color: #888;
+  color: var(--text-dim);
   font-size: 0.8rem;
   cursor: pointer;
-  width: 25%;
+  transition: all 0.3s ease;
 }
 
 .nav-item.active {
-  color: #FF6347;
-  font-weight: bold;
+  color: var(--soft-peach);
 }
 
 .nav-icon {
@@ -35,10 +34,15 @@
   margin-bottom: 2px;
 }
 
+.nav-item.active .nav-icon {
+  transform: scale(1.1);
+}
+
 /* Adjust app container to not hide behind nav */
 .app-content {
-  height: 100vh;
+  min-height: 100vh;
   overflow: auto;
-  padding-bottom: 70px; /* Nav height */
+  padding-bottom: 90px; /* Nav height + extra */
   box-sizing: border-box;
+  background-color: var(--base-bg);
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useUser } from '../context/UserContext';
-import { wingmanService } from '../services/wingmanService';
+import { peachAIService } from '../services/peachAIService';
 
 const Chat = ({ matchId, onBack }) => {
   const { chats, sendMessage, userProfile, matches, subscription } = useUser();
@@ -12,7 +12,6 @@ const Chat = ({ matchId, onBack }) => {
   const matchRecord = matches.find(m => m.id === matchId);
   const match = matchRecord?.matchedUser;
   
-  // Fix: Use useMemo to prevent useEffect dependency warning
   const messages = useMemo(() => {
     return chats[matchId] || [];
   }, [chats, matchId]);
@@ -23,7 +22,7 @@ const Chat = ({ matchId, onBack }) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]); // Now messages is stable
+  }, [messages]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -41,19 +40,19 @@ const Chat = ({ matchId, onBack }) => {
 
   const handleWingman = () => {
     if (!subscription.isPremium) {
-      alert("Wingman is a Premium feature! Upgrade to get AI-powered conversation help.");
+      alert("Peach Coaching is a Premium feature! Upgrade to get AI-powered conversation help.");
       return;
     }
 
-    let context = {};
+    let lastMsgText = '';
     if (messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg.sender === 'them') {
-        context.lastMessage = lastMsg.text;
+        lastMsgText = lastMsg.text;
       }
     }
 
-    const line = wingmanService.generateLine(userProfile, match, context);
+    const line = peachAIService.generateReply(lastMsgText);
     setWingmanSuggestion(line);
     setInputText(line);
   };
@@ -68,11 +67,12 @@ const Chat = ({ matchId, onBack }) => {
     return (
       <div style={styles.notFoundContainer}>
         <div style={styles.notFoundIcon}>🍑</div>
-        <h2>Match not found</h2>
-        <p>This chat may have been removed or the user is no longer available.</p>
+        <h2 style={{color: 'var(--text-white)'}}>Match not found</h2>
+        <p style={{color: 'var(--text-dim)'}}>This chat may have been removed or the user is no longer available.</p>
         <button
           onClick={onBack}
-          style={styles.backButton}
+          className="primary"
+          style={{marginTop: '20px'}}
         >
           Go Back
         </button>
@@ -97,7 +97,7 @@ const Chat = ({ matchId, onBack }) => {
             alt={match.alias || match.realName}
             style={styles.avatar}
             onError={(e) => {
-              e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="22" fill="%23FF6347"/><text x="22" y="28" font-size="18" text-anchor="middle" fill="white">🍑</text></svg>';
+              e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="22" fill="%23F4B6A6"/><text x="22" y="28" font-size="18" text-anchor="middle" fill="black">🍑</text></svg>';
             }}
           />
           <div style={styles.headerInfo}>
@@ -131,14 +131,14 @@ const Chat = ({ matchId, onBack }) => {
           >
             <div style={{
               ...styles.messageBubble,
-              backgroundColor: msg.sender === 'me' ? '#FF6347' : '#fff',
-              color: msg.sender === 'me' ? 'white' : '#333',
-              border: msg.sender === 'me' ? 'none' : '1px solid #e0e0e0'
+              backgroundColor: msg.sender === 'me' ? 'var(--soft-peach)' : 'var(--secondary-bg)',
+              color: msg.sender === 'me' ? 'var(--base-bg)' : 'var(--text-white)',
+              border: 'none'
             }}>
               {msg.text}
               <div style={{
                 ...styles.messageTime,
-                color: msg.sender === 'me' ? 'rgba(255,255,255,0.7)' : '#888',
+                color: msg.sender === 'me' ? 'rgba(0,0,0,0.5)' : 'var(--text-dim)',
                 textAlign: msg.sender === 'me' ? 'end' : 'start'
               }}>
                 {formatTime(msg.timestamp)}
@@ -151,9 +151,9 @@ const Chat = ({ matchId, onBack }) => {
 
       {wingmanSuggestion && (
         <div style={styles.suggestionBanner}>
-          <div style={styles.suggestionIcon}>🦜</div>
+          <div style={styles.suggestionIcon}>🍑</div>
           <div style={styles.suggestionContent}>
-            <div style={styles.suggestionTitle}>Wingman Suggestion</div>
+            <div style={styles.suggestionTitle}>Peach Coaching</div>
             <div style={styles.suggestionText}>"{wingmanSuggestion}"</div>
           </div>
           <button
@@ -171,14 +171,14 @@ const Chat = ({ matchId, onBack }) => {
           <button
             type="button"
             onClick={handleWingman}
-            title="Get Wingman suggestion"
+            title="Get Peach coaching"
             style={{
               ...styles.wingmanButton,
-              background: subscription.isPremium ? '#0288D1' : '#e0e0e0',
+              background: subscription.isPremium ? 'var(--gold)' : 'var(--glass-bg)',
               cursor: subscription.isPremium ? 'pointer' : 'not-allowed'
             }}
           >
-            🦜
+            🍑
           </button>
 
           <input
@@ -195,7 +195,8 @@ const Chat = ({ matchId, onBack }) => {
             disabled={!inputText.trim()}
             style={{
               ...styles.sendButton,
-              background: inputText.trim() ? '#FF6347' : '#e0e0e0',
+              background: inputText.trim() ? 'var(--soft-peach)' : 'var(--glass-bg)',
+              color: inputText.trim() ? 'var(--base-bg)' : 'var(--text-dim)',
               cursor: inputText.trim() ? 'pointer' : 'not-allowed'
             }}
           >
@@ -215,7 +216,7 @@ const styles = {
     maxWidth: '600px',
     margin: '0 auto',
     fontFamily: 'system-ui, -apple-system, sans-serif',
-    backgroundColor: '#fff',
+    backgroundColor: 'var(--base-bg)',
     position: 'relative'
   },
   notFoundContainer: {
@@ -231,26 +232,15 @@ const styles = {
     fontSize: '3rem',
     marginBottom: '20px'
   },
-  backButton: {
-    marginTop: '20px',
-    padding: '12px 24px',
-    background: '#FF6347',
-    color: 'white',
-    border: 'none',
-    borderRadius: '25px',
-    cursor: 'pointer',
-    fontSize: '1rem'
-  },
   header: {
     padding: '12px 16px',
-    borderBottom: '1px solid #eee',
+    borderBottom: '1px solid var(--glass-border)',
     display: 'flex',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: 'var(--secondary-bg)',
     position: 'sticky',
     top: 0,
-    zIndex: 10,
-    boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
+    zIndex: 10
   },
   backArrow: {
     background: 'none',
@@ -259,7 +249,7 @@ const styles = {
     cursor: 'pointer',
     padding: '8px',
     marginRight: '12px',
-    color: '#FF6347',
+    color: 'var(--soft-peach)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -278,7 +268,7 @@ const styles = {
     borderRadius: '50%',
     marginRight: '12px',
     objectFit: 'cover',
-    border: '2px solid #FF6347'
+    border: '2px solid var(--soft-peach)'
   },
   headerInfo: {
     minWidth: 0,
@@ -287,7 +277,7 @@ const styles = {
   name: {
     fontWeight: '600',
     fontSize: '1.1rem',
-    color: '#333',
+    color: 'var(--text-white)',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis'
@@ -304,20 +294,17 @@ const styles = {
     width: '8px',
     height: '8px',
     borderRadius: '50%',
-    backgroundColor: '#4CAF50',
-    animation: 'pulse 2s infinite'
+    backgroundColor: '#4CAF50'
   },
   messagesArea: {
     flex: 1,
     padding: '16px',
     overflowY: 'auto',
-    backgroundColor: '#f8f8f8',
-    backgroundImage: 'linear-gradient(rgba(255, 99, 71, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 99, 71, 0.03) 1px, transparent 1px)',
-    backgroundSize: '20px 20px'
+    backgroundColor: 'var(--base-bg)'
   },
   welcomeMessage: {
     textAlign: 'center',
-    color: '#666',
+    color: 'var(--text-dim)',
     marginTop: '40px',
     padding: '20px'
   },
@@ -325,7 +312,7 @@ const styles = {
     width: '80px',
     height: '80px',
     borderRadius: '50%',
-    backgroundColor: '#FFF0E6',
+    backgroundColor: 'var(--glass-bg)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -333,16 +320,12 @@ const styles = {
     fontSize: '2.5rem'
   },
   welcomeTitle: {
-    color: '#FF6347',
+    color: 'var(--soft-peach)',
     marginBottom: '8px'
   },
   welcomeText: {
     fontSize: '0.95rem',
     marginBottom: '4px'
-  },
-  welcomeSubtext: {
-    fontSize: '0.9rem',
-    color: '#888'
   },
   messageContainer: {
     display: 'flex',
@@ -353,9 +336,9 @@ const styles = {
     maxWidth: '85%',
     padding: '12px 16px',
     borderRadius: '18px',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
     position: 'relative',
-    wordBreak: 'break-word'
+    wordBreak: 'break-word',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
   },
   messageTime: {
     fontSize: '0.75rem',
@@ -363,8 +346,8 @@ const styles = {
   },
   suggestionBanner: {
     padding: '12px 16px',
-    backgroundColor: '#E1F5FE',
-    borderTop: '1px solid #B3E5FC',
+    backgroundColor: 'var(--secondary-bg)',
+    borderTop: '1px solid var(--glass-border)',
     display: 'flex',
     alignItems: 'center',
     gap: '12px'
@@ -373,11 +356,11 @@ const styles = {
     width: '32px',
     height: '32px',
     borderRadius: '50%',
-    backgroundColor: '#0288D1',
+    backgroundColor: 'var(--gold)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: 'white',
+    color: 'var(--base-bg)',
     fontSize: '1.2rem'
   },
   suggestionContent: {
@@ -385,11 +368,11 @@ const styles = {
   },
   suggestionTitle: {
     fontWeight: '600',
-    color: '#01579B',
+    color: 'var(--gold)',
     fontSize: '0.9rem'
   },
   suggestionText: {
-    color: '#0277BD',
+    color: 'var(--text-white)',
     fontSize: '0.95rem'
   },
   dismissButton: {
@@ -397,13 +380,13 @@ const styles = {
     border: 'none',
     fontSize: '1.5rem',
     cursor: 'pointer',
-    color: '#0288D1',
+    color: 'var(--text-dim)',
     padding: '4px'
   },
   inputArea: {
     padding: '12px 16px',
-    borderTop: '1px solid #eee',
-    backgroundColor: '#fff',
+    borderTop: '1px solid var(--glass-border)',
+    backgroundColor: 'var(--secondary-bg)',
     position: 'sticky',
     bottom: 0
   },
@@ -423,7 +406,6 @@ const styles = {
     justifyContent: 'center',
     color: 'white',
     flexShrink: 0,
-    transition: 'transform 0.2s',
     minWidth: '44px',
     minHeight: '44px'
   },
@@ -431,14 +413,14 @@ const styles = {
     flex: 1,
     padding: '12px 18px',
     borderRadius: '24px',
-    border: '1px solid #ddd',
+    border: '1px solid var(--glass-border)',
     fontSize: '1rem',
-    backgroundColor: '#f9f9f9',
+    backgroundColor: 'var(--base-bg)',
+    color: 'var(--text-white)',
     outline: 'none',
     minWidth: '0'
   },
   sendButton: {
-    color: 'white',
     border: 'none',
     borderRadius: '50%',
     width: '44px',
@@ -448,7 +430,6 @@ const styles = {
     justifyContent: 'center',
     fontSize: '1.3rem',
     flexShrink: 0,
-    transition: 'background 0.2s, transform 0.2s',
     minWidth: '44px',
     minHeight: '44px'
   }

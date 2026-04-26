@@ -2,93 +2,166 @@ import React, { useState } from 'react';
 import { useUser } from '../context/UserContext';
 
 export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
+  const { loginUser } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { loginUser } = useUser();
+  const [error, setError] = useState('');
 
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       await loginUser(email, password);
       onLoginSuccess();
-    } catch (error) {
-      alert("Login failed: " + error.message);
+    } catch (err) {
+      setError(err.message);
     }
   };
 
   return (
-    <div style={{ padding: '40px', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
-      <h1>Peach 🍑</h1>
-      <h2>Login</h2>
-      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-        />
-        <button type="submit" style={{ padding: '12px', background: '#FF6347', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', fontWeight: 'bold' }}>Login</button>
-      </form>
-      <div style={{ marginTop: '20px' }}>
-        <p>New to Peach?</p>
-        <button onClick={onSwitchToSignup} style={{ background: 'none', border: 'none', color: '#FF6347', cursor: 'pointer', fontWeight: 'bold' }}>Create Account</button>
+    <div style={styles.container}>
+      <div className="glass-card" style={styles.card}>
+        <div style={styles.logo}>🍑</div>
+        <h2 style={styles.title}>Welcome to <span className="peach-text">Peach</span></h2>
+        <p style={styles.subtitle}>AI Matchmaking for serious singles.</p>
+
+        {error && <div style={styles.error}>{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <input
+            type="email"
+            placeholder="Email"
+            style={styles.input}
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            style={styles.input}
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            required
+          />
+          <button type="submit" className="primary" style={styles.btn}>Sign In</button>
+        </form>
+
+        <p style={styles.switch}>
+          Don't have an account? <span style={styles.link} onClick={onSwitchToSignup}>Join Peach</span>
+        </p>
       </div>
     </div>
   );
 };
 
 export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
+  const { signupUser } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { signupUser } = useUser();
+  const [error, setError] = useState('');
 
-  const handleSignup = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (email && password) {
-      try {
-        await signupUser(email, password);
-        onSignupSuccess();
-      } catch (error) {
-        alert("Signup failed: " + error.message);
-      }
-    } else {
-      alert("Please fill all fields.");
+    try {
+      await signupUser(email, password);
+      onSignupSuccess();
+    } catch (err) {
+      setError(err.message);
     }
   };
 
   return (
-    <div style={{ padding: '40px', maxWidth: '400px', margin: '0 auto', textAlign: 'center' }}>
-      <h1>Peach 🍑</h1>
-      <h2>Create Account</h2>
-      <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-        />
-        <input
-          type="password"
-          placeholder="Create Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-        />
-        <button type="submit" style={{ padding: '12px', background: '#FF6347', color: 'white', border: 'none', borderRadius: '25px', cursor: 'pointer', fontWeight: 'bold' }}>Sign Up</button>
-      </form>
-      <div style={{ marginTop: '20px' }}>
-        <p>Already have an account?</p>
-        <button onClick={onSwitchToLogin} style={{ background: 'none', border: 'none', color: '#FF6347', cursor: 'pointer', fontWeight: 'bold' }}>Login</button>
+    <div style={styles.container}>
+      <div className="glass-card" style={styles.card}>
+        <div style={styles.logo}>🍑</div>
+        <h2 style={styles.title}>Create <span className="peach-text">Peach</span> Account</h2>
+        <p style={styles.subtitle}>Start your journey to a serious relationship.</p>
+
+        {error && <div style={styles.error}>{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <input
+            type="email"
+            placeholder="Email"
+            style={styles.input}
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            style={styles.input}
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            required
+          />
+          <button type="submit" className="primary" style={styles.btn}>Join Now</button>
+        </form>
+
+        <p style={styles.switch}>
+          Already have an account? <span style={styles.link} onClick={onSwitchToLogin}>Sign In</span>
+        </p>
       </div>
     </div>
   );
+};
+
+const styles = {
+  container: {
+    height: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'var(--base-bg)'
+  },
+  card: {
+    padding: '40px',
+    width: '100%',
+    maxWidth: '400px',
+    textAlign: 'center'
+  },
+  logo: {
+    fontSize: '3.5rem',
+    marginBottom: '20px'
+  },
+  title: {
+    fontSize: '1.8rem',
+    marginBottom: '10px'
+  },
+  subtitle: {
+    color: 'var(--text-dim)',
+    marginBottom: '30px'
+  },
+  input: {
+    width: '100%',
+    padding: '14px',
+    marginBottom: '15px',
+    borderRadius: '10px',
+    border: '1px solid var(--glass-border)',
+    backgroundColor: 'var(--glass-bg)',
+    color: 'white',
+    outline: 'none'
+  },
+  btn: {
+    width: '100%',
+    padding: '14px',
+    fontSize: '1.1rem',
+    marginTop: '10px'
+  },
+  error: {
+    color: '#FF6347',
+    marginBottom: '15px',
+    fontSize: '0.9rem'
+  },
+  switch: {
+    marginTop: '25px',
+    fontSize: '0.9rem',
+    color: 'var(--text-dim)'
+  },
+  link: {
+    color: 'var(--soft-peach)',
+    cursor: 'pointer',
+    fontWeight: 'bold'
+  }
 };

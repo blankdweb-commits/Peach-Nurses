@@ -3,10 +3,10 @@ import './Navigation.css';
 
 const BottomNav = ({ currentView, onChangeView }) => {
   const navItems = [
-    { id: 'discover', icon: '🍑', label: 'Discover' },
+    { id: 'home', icon: '🏠', label: 'Home' },
     { id: 'chatList', icon: '💬', label: 'Chats' },
-    { id: 'likes', icon: '❤️', label: 'Likes' },
-    { id: 'membership', icon: '👑', label: 'Premium' },
+    { id: 'introductions', icon: '✨', label: 'Intros' },
+    { id: 'insights', icon: '📊', label: 'Insights' },
     { id: 'settings', icon: '⚙️', label: 'Settings' }
   ];
 

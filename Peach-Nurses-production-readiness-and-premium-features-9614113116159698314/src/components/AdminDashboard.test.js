@@ -1,32 +1,29 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import AdminDashboard from './AdminDashboard';
-import { AdminContext } from '../context/AdminContext';
 import { UserContext } from '../context/UserContext';
+import { AdminContext } from '../context/AdminContext';
 
-const renderAdmin = (ui, { isAdmin, loginAdmin, logoutAdmin, deleteUser, banUser, subscription, potentialMatches }) => {
+const renderAdmin = (ui, { isAdmin, loginAdmin, deleteUser, banUser, potentialMatches }) => {
   const fetchAllProfiles = jest.fn();
   return render(
-    <UserContext.Provider value={{ subscription, potentialMatches, fetchAllProfiles }}>
-      <AdminContext.Provider value={{ isAdmin, loginAdmin, logoutAdmin, deleteUser, banUser }}>
+    <UserContext.Provider value={{ potentialMatches, fetchAllProfiles }}>
+      <AdminContext.Provider value={{ isAdmin, loginAdmin, deleteUser, banUser }}>
         {ui}
       </AdminContext.Provider>
     </UserContext.Provider>
   );
 };
 
-const mockUser = { id: 1, alias: "User1", realName: "Real1", banned: false };
-const mockSubscription = { isPremium: false, dailyUnripes: 0, lastReset: '2023-01-01' };
+const mockUser = { id: 1, username: "User1", email: "user1@example.com", banned: false };
 
 describe('Admin Dashboard', () => {
   test('shows login form when not logged in', () => {
-    renderAdmin(<AdminDashboard />, {
+    renderAdmin(<AdminDashboard onBack={jest.fn()} />, {
       isAdmin: false,
       loginAdmin: jest.fn(),
-      logoutAdmin: jest.fn(),
       deleteUser: jest.fn(),
       banUser: jest.fn(),
-      subscription: mockSubscription,
       potentialMatches: []
     });
 
@@ -34,48 +31,41 @@ describe('Admin Dashboard', () => {
     expect(screen.getByPlaceholderText("Enter Admin Password")).toBeInTheDocument();
   });
 
-  test('calls loginAdmin with password', () => {
+  test('calls loginAdmin when Login button clicked', () => {
     const loginAdmin = jest.fn();
-    renderAdmin(<AdminDashboard />, {
+    renderAdmin(<AdminDashboard onBack={jest.fn()} />, {
       isAdmin: false,
       loginAdmin,
-      logoutAdmin: jest.fn(),
       deleteUser: jest.fn(),
       banUser: jest.fn(),
-      subscription: mockSubscription,
       potentialMatches: []
     });
 
     fireEvent.change(screen.getByPlaceholderText("Enter Admin Password"), { target: { value: 'password' } });
     fireEvent.click(screen.getByText("Login"));
-
     expect(loginAdmin).toHaveBeenCalledWith('password');
   });
 
   test('shows dashboard when logged in', () => {
-    renderAdmin(<AdminDashboard />, {
+    renderAdmin(<AdminDashboard onBack={jest.fn()} />, {
       isAdmin: true,
       loginAdmin: jest.fn(),
-      logoutAdmin: jest.fn(),
       deleteUser: jest.fn(),
       banUser: jest.fn(),
-      subscription: mockSubscription,
       potentialMatches: [mockUser]
     });
 
-    expect(screen.getByText("Admin Dashboard 🛠️")).toBeInTheDocument();
+    expect(screen.getByText("Admin Console")).toBeInTheDocument();
     expect(screen.getByText("User1")).toBeInTheDocument();
   });
 
   test('calls banUser when Ban button clicked', () => {
     const banUser = jest.fn();
-    renderAdmin(<AdminDashboard />, {
+    renderAdmin(<AdminDashboard onBack={jest.fn()} />, {
       isAdmin: true,
       loginAdmin: jest.fn(),
-      logoutAdmin: jest.fn(),
       deleteUser: jest.fn(),
       banUser,
-      subscription: mockSubscription,
       potentialMatches: [mockUser]
     });
 
@@ -85,13 +75,11 @@ describe('Admin Dashboard', () => {
 
   test('calls deleteUser when Delete button clicked', () => {
     const deleteUser = jest.fn();
-    renderAdmin(<AdminDashboard />, {
+    renderAdmin(<AdminDashboard onBack={jest.fn()} />, {
       isAdmin: true,
       loginAdmin: jest.fn(),
-      logoutAdmin: jest.fn(),
       deleteUser,
       banUser: jest.fn(),
-      subscription: mockSubscription,
       potentialMatches: [mockUser]
     });
 
