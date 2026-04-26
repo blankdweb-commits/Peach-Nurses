@@ -1,4 +1,5 @@
-// src/context/UserContext.js
+"use client";
+// s../context/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 

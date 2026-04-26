@@ -1,6 +1,7 @@
+'use client';
+
 import React, { useState } from 'react';
-import { UserProvider, useUser } from './context/UserContext';
-import { AdminProvider } from './context/AdminContext';
+import { useUser } from './context/UserContext';
 import Home from './components/Home';
 import Introductions from './components/Introductions';
 import Insights from './components/Insights';
@@ -12,9 +13,8 @@ import Chat from './components/Chat';
 import Onboarding from './components/Onboarding';
 import { Login, Signup } from './components/Auth';
 import BottomNav from './components/BottomNav';
-import './components/Navigation.css';
 
-function AppContent() {
+export default function Page() {
   const { currentUser, onboardingComplete } = useUser();
   const [currentView, setCurrentView] = useState('home');
   const [authView, setAuthView] = useState('login');
@@ -106,15 +106,3 @@ function AppContent() {
     </div>
   );
 }
-
-function App() {
-  return (
-    <UserProvider>
-      <AdminProvider>
-        <AppContent />
-      </AdminProvider>
-    </UserProvider>
-  );
-}
-
-export default App;

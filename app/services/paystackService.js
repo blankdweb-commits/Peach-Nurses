@@ -1,4 +1,4 @@
-// src/services/paystackService.js
+// s../services/paystackService.js
 
 // Paystack configuration
 export const PAYSTACK_CONFIG = {

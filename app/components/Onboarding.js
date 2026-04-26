@@ -62,7 +62,7 @@ const Onboarding = () => {
     const currentQuestion = chatHistory.filter(m => m.sender === 'peach').slice(-1)[0];
     const newHistory = [...chatHistory, { sender: 'user', text: inputText }];
     setChatHistory(newHistory);
-    
+
     // Update profile with answer
     if (currentQuestion && currentQuestion.field) {
       setBasics(prev => ({ ...prev, [currentQuestion.field]: inputText }));
@@ -108,7 +108,7 @@ const Onboarding = () => {
         <div className="glass-card" style={styles.card}>
           <h2 style={styles.title}><span className="peach-text">Peach</span> Basics</h2>
           <p style={styles.subtitle}>Let's start with the essentials.</p>
-          
+
           <form onSubmit={handleBasicsSubmit}>
             <div style={styles.formGroup}>
               <label style={styles.label}>Username</label>
