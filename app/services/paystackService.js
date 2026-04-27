@@ -1,0 +1,103 @@
+// s../services/paystackService.js
+
+// Paystack configuration
+export const PAYSTACK_CONFIG = {
+  publicKey: process.env.REACT_APP_PAYSTACK_PUBLIC_KEY,
+  currency: 'NGN',
+  plans: {
+    premium: {
+      amount: 2500, // ₦2,500
+      planCode: 'PLN_xxxxxxxxxxxxx' // Optional: for subscription plans
+    }
+  }
+};
+
+// Initialize payment
+export const initializePayment = ({ email, amount, metadata = {} }) => {
+  return {
+    key: PAYSTACK_CONFIG.publicKey,
+    email,
+    amount: amount * 100, // Convert to kobo
+    currency: PAYSTACK_CONFIG.currency,
+    metadata: {
+      ...metadata,
+      custom_fields: [
+        {
+          display_name: "User ID",
+          variable_name: "user_id",
+          value: metadata.userId || ''
+        }
+      ]
+    },
+    onSuccess: (reference) => {
+      console.log('Payment successful:', reference);
+      return reference;
+    },
+    onClose: () => {
+      console.log('Payment dialog closed');
+    }
+  };
+};
+
+// Verify payment (backend implementation)
+export const verifyPayment = async (reference) => {
+  const verifyUrl = process.env.REACT_APP_VERIFY_PAYMENT_URL;
+
+  if (verifyUrl) {
+    try {
+      const response = await fetch(`${verifyUrl}?reference=${reference}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Payment verification failed:', error);
+      throw error;
+    }
+  }
+
+  // Fallback for development/demo
+  try {
+    const response = await new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          success: true,
+          data: {
+            status: 'success',
+            reference: reference,
+            amount: 2500,
+            plan: 'premium'
+          }
+        });
+      }, 1000);
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Payment verification failed:', error);
+    throw error;
+  }
+};
+
+// Initialize subscription
+export const initializeSubscription = ({ email, planCode, metadata = {} }) => {
+  return {
+    key: PAYSTACK_CONFIG.publicKey,
+    email,
+    plan: planCode,
+    metadata: {
+      ...metadata,
+      subscription_type: 'premium'
+    },
+    onSuccess: (reference) => {
+      console.log('Subscription successful:', reference);
+      return reference;
+    },
+    onClose: () => {
+      console.log('Subscription dialog closed');
+    }
+  };
+};

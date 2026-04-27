@@ -1,0 +1,48 @@
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: var(--secondary-bg);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--glass-border);
+  z-index: 1000;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nav-item.active {
+  color: var(--soft-peach);
+}
+
+.nav-icon {
+  font-size: 1.5rem;
+  margin-bottom: 2px;
+}
+
+.nav-item.active .nav-icon {
+  transform: scale(1.1);
+}
+
+/* Adjust app container to not hide behind nav */
+.app-content {
+  min-height: 100vh;
+  overflow: auto;
+  padding-bottom: 90px; /* Nav height + extra */
+  box-sizing: border-box;
+  background-color: var(--base-bg);
+}

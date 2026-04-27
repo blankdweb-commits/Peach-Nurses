@@ -1,0 +1,97 @@
+:root {
+  --base-bg: #121212;
+  --secondary-bg: #2A2A2A;
+  --soft-peach: #F4B6A6;
+  --gold: #D4AF37;
+  --text-white: #FFFFFF;
+  --text-dim: #BBBBBB;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  box-sizing: border-box;
+  background-color: var(--base-bg);
+  color: var(--text-white);
+}
+
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 15px;
+}
+
+.gold-text {
+  color: var(--gold);
+}
+
+.peach-text {
+  color: var(--soft-peach);
+}
+
+/* Mobile responsive table for Admin Dashboard */
+.responsive-table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure inputs and buttons are touch-friendly */
+input, select, textarea, button {
+  font-size: 16px; /* Prevents iOS zoom on focus */
+}
+
+button.primary {
+  background-color: var(--soft-peach);
+  color: var(--base-bg);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+button.primary:hover {
+  background-color: #e09d8d;
+}
+
+button.secondary {
+  background-color: transparent;
+  color: var(--soft-peach);
+  border: 2px solid var(--soft-peach);
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+button.secondary:hover {
+  background-color: var(--glass-bg);
+}
+.divider span {
+  padding: 0 10px;
+}
+.divider::before, .divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--glass-border);
+}
