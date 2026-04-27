@@ -7,6 +7,9 @@ import DevToolbar from './components/DevToolbar'
 export const metadata: Metadata = {
   title: 'Peach - AI Matchmaker',
   description: 'Personal AI Matchmaker for serious singles',
+  icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({
