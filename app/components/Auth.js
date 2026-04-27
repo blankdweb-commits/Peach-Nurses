@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useUser } from '../context/UserContext';
-import { DEV_MODE } from '../services/devService';
 
 const Divider = ({ children }) => (
   <div style={styles.divider}>
@@ -11,7 +10,7 @@ const Divider = ({ children }) => (
 );
 
 export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
-  const { loginUser, loginAsGuest, loginAsDemo } = useUser();
+  const { loginUser, loginAsGuest, loginAsDemo, hasSupabase } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -33,21 +32,21 @@ export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
         <h2 style={styles.title}>Welcome to <span className="peach-text">Peach</span></h2>
         <p style={styles.subtitle}>AI Matchmaking for serious singles.</p>
 
-        {DEV_MODE && (
-          <div style={styles.devSection}>
-            <button className="primary" style={styles.guestBtn} onClick={loginAsGuest}>
-              Try Peach Instantly ✨
-            </button>
-            <Divider>Demo Accounts</Divider>
-            <div style={styles.demoGrid}>
-              <button style={styles.demoBtn} onClick={() => loginAsDemo('male')}>Male User</button>
-              <button style={styles.demoBtn} onClick={() => loginAsDemo('female')}>Female User</button>
-              <button style={styles.demoBtn} onClick={() => loginAsDemo('premium')}>Premium</button>
-              <button style={styles.demoBtn} onClick={() => loginAsDemo('admin')}>Admin</button>
-            </div>
-            <Divider>Or continue with</Divider>
+        <div style={styles.devSection}>
+          <button className="primary" style={styles.guestBtn} onClick={loginAsGuest}>
+            Try Peach Instantly ✨
+          </button>
+
+          <Divider>Demo Accounts</Divider>
+          <div style={styles.demoGrid}>
+            <button style={styles.demoBtn} onClick={() => loginAsDemo('male')}>Demo Male</button>
+            <button style={styles.demoBtn} onClick={() => loginAsDemo('female')}>Demo Female</button>
+            <button style={styles.demoBtn} onClick={() => loginAsDemo('premium')}>Premium User</button>
+            <button style={styles.demoBtn} onClick={() => loginAsDemo('admin')}>Admin Tester</button>
           </div>
-        )}
+
+          <Divider>{hasSupabase ? 'Continue with Email' : 'Sign In'}</Divider>
+        </div>
 
         {error && <div style={styles.error}>{error}</div>}
 
@@ -80,15 +79,19 @@ export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
 };
 
 export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
-  const { signupUser, loginAsGuest } = useUser();
+  const { signupUser, loginAsGuest, hasSupabase, updateUserProfile } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [gender, setGender] = useState('');
+  const [city, setCity] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await signupUser(email, password);
+      await signupUser(email, password, username);
+      await updateUserProfile({ gender, based: city });
       onSignupSuccess();
     } catch (err) {
       setError(err.message);
@@ -102,18 +105,24 @@ export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
         <h2 style={styles.title}>Create <span className="peach-text">Peach</span> Account</h2>
         <p style={styles.subtitle}>Start your journey to a serious relationship.</p>
 
-        {DEV_MODE && (
-          <div style={styles.devSection}>
-            <button className="primary" style={styles.guestBtn} onClick={loginAsGuest}>
-              Try Peach Instantly ✨
-            </button>
-            <Divider>Or use email</Divider>
-          </div>
-        )}
+        <div style={styles.devSection}>
+          <button className="primary" style={styles.guestBtn} onClick={loginAsGuest}>
+            Try Peach Instantly ✨
+          </button>
+          <Divider>{hasSupabase ? 'Or use email' : 'Create Local Account'}</Divider>
+        </div>
 
         {error && <div style={styles.error}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            placeholder="Name"
+            style={styles.input}
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            required
+          />
           <input
             type="email"
             placeholder="Email"
@@ -130,6 +139,27 @@ export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
             onChange={e => setPassword(e.target.value)}
             required
           />
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+            <select
+              style={{ ...styles.input, marginBottom: 0, flex: 1 }}
+              value={gender}
+              onChange={e => setGender(e.target.value)}
+              required
+            >
+              <option value="">Gender</option>
+              <option value="Man">Man</option>
+              <option value="Woman">Woman</option>
+              <option value="Non-binary">Non-binary</option>
+            </select>
+            <input
+              type="text"
+              placeholder="City"
+              style={{ ...styles.input, marginBottom: 0, flex: 1 }}
+              value={city}
+              onChange={e => setCity(e.target.value)}
+              required
+            />
+          </div>
           <button type="submit" className="primary" style={styles.btn}>Join Now</button>
         </form>
 
@@ -224,7 +254,8 @@ const styles = {
     width: '100%',
     padding: '14px',
     fontSize: '1.1rem',
-    marginTop: '10px'
+    marginTop: '10px',
+    border: 'none'
   },
   error: {
     color: '#FF6347',

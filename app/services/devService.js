@@ -21,7 +21,8 @@ export const DEMO_PROFILES = {
     job: 'Product Manager',
     is_premium: false,
     onboarding_complete: true,
-    readinessScore: 8
+    readinessScore: 8,
+    is_demo: true
   },
   female: {
     id: 'demo_female',
@@ -33,7 +34,8 @@ export const DEMO_PROFILES = {
     job: 'Legal Counsel',
     is_premium: false,
     onboarding_complete: true,
-    readinessScore: 9
+    readinessScore: 9,
+    is_demo: true
   },
   premium: {
     id: 'demo_premium',
@@ -45,51 +47,22 @@ export const DEMO_PROFILES = {
     job: 'Fintech Founder',
     is_premium: true,
     onboarding_complete: true,
-    readinessScore: 10
+    readinessScore: 10,
+    is_demo: true
   },
   admin: {
     id: 'demo_admin',
     username: 'AdminTester',
     alias: 'PeachAdmin',
     is_admin: true,
-    onboarding_complete: true
+    onboarding_complete: true,
+    is_demo: true
   }
 };
 
 export const devService = {
-  createGuestSession: () => {
-    const guestId = 'guest_' + Math.random().toString(36).substr(2, 9);
-    const guestUser = {
-      id: guestId,
-      email: 'guest@example.com',
-      is_guest: true
-    };
-    const guestProfile = {
-      id: guestId,
-      username: 'GuestUser',
-      alias: 'Guest User',
-      based: 'Lagos',
-      onboarding_complete: false,
-      is_guest: true
-    };
-
-    localStorage.setItem('peach_guest_session', JSON.stringify({ user: guestUser, profile: guestProfile }));
-    return { user: guestUser, profile: guestProfile };
-  },
-
-  getStoredSession: () => {
-    const session = localStorage.getItem('peach_guest_session');
-    return session ? JSON.parse(session) : null;
-  },
-
-  clearSession: () => {
-    localStorage.removeItem('peach_guest_session');
-  },
-
   loginAsDemo: (type) => {
     const profile = DEMO_PROFILES[type];
-    const user = { id: profile.id, email: `${type}@demo.com`, is_demo: true };
-    localStorage.setItem('peach_guest_session', JSON.stringify({ user, profile }));
-    return { user, profile };
+    return { ...profile, email: `${type}@demo.com` };
   }
 };
