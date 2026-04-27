@@ -1,8 +1,17 @@
 import React, { useState } from 'react';
 import { useUser } from '../context/UserContext';
+import { DEV_MODE } from '../services/devService';
+
+const Divider = ({ children }) => (
+  <div style={styles.divider}>
+    <div style={styles.dividerLine}></div>
+    <span style={styles.dividerText}>{children}</span>
+    <div style={styles.dividerLine}></div>
+  </div>
+);
 
 export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
-  const { loginUser } = useUser();
+  const { loginUser, loginAsGuest, loginAsDemo } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -23,6 +32,22 @@ export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
         <div style={styles.logo}>🍑</div>
         <h2 style={styles.title}>Welcome to <span className="peach-text">Peach</span></h2>
         <p style={styles.subtitle}>AI Matchmaking for serious singles.</p>
+
+        {DEV_MODE && (
+          <div style={styles.devSection}>
+            <button className="primary" style={styles.guestBtn} onClick={loginAsGuest}>
+              Try Peach Instantly ✨
+            </button>
+            <Divider>Demo Accounts</Divider>
+            <div style={styles.demoGrid}>
+              <button style={styles.demoBtn} onClick={() => loginAsDemo('male')}>Male User</button>
+              <button style={styles.demoBtn} onClick={() => loginAsDemo('female')}>Female User</button>
+              <button style={styles.demoBtn} onClick={() => loginAsDemo('premium')}>Premium</button>
+              <button style={styles.demoBtn} onClick={() => loginAsDemo('admin')}>Admin</button>
+            </div>
+            <Divider>Or continue with</Divider>
+          </div>
+        )}
 
         {error && <div style={styles.error}>{error}</div>}
 
@@ -55,7 +80,7 @@ export const Login = ({ onLoginSuccess, onSwitchToSignup }) => {
 };
 
 export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
-  const { signupUser } = useUser();
+  const { signupUser, loginAsGuest } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -76,6 +101,15 @@ export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
         <div style={styles.logo}>🍑</div>
         <h2 style={styles.title}>Create <span className="peach-text">Peach</span> Account</h2>
         <p style={styles.subtitle}>Start your journey to a serious relationship.</p>
+
+        {DEV_MODE && (
+          <div style={styles.devSection}>
+            <button className="primary" style={styles.guestBtn} onClick={loginAsGuest}>
+              Try Peach Instantly ✨
+            </button>
+            <Divider>Or use email</Divider>
+          </div>
+        )}
 
         {error && <div style={styles.error}>{error}</div>}
 
@@ -109,11 +143,12 @@ export const Signup = ({ onSignupSuccess, onSwitchToLogin }) => {
 
 const styles = {
   container: {
-    height: '100vh',
+    minHeight: '100vh',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'var(--base-bg)'
+    backgroundColor: 'var(--base-bg)',
+    padding: '20px'
   },
   card: {
     padding: '40px',
@@ -132,6 +167,48 @@ const styles = {
   subtitle: {
     color: 'var(--text-dim)',
     marginBottom: '30px'
+  },
+  devSection: {
+    marginBottom: '30px'
+  },
+  guestBtn: {
+    width: '100%',
+    padding: '14px',
+    fontSize: '1.1rem',
+    marginBottom: '20px',
+    background: 'linear-gradient(45deg, var(--soft-peach), var(--gold))',
+    color: 'var(--base-bg)',
+    border: 'none',
+    fontWeight: 'bold'
+  },
+  divider: {
+    display: 'flex',
+    alignItems: 'center',
+    margin: '20px 0'
+  },
+  dividerLine: {
+    flex: 1,
+    height: '1px',
+    backgroundColor: 'var(--glass-border)'
+  },
+  dividerText: {
+    padding: '0 10px',
+    color: 'var(--text-dim)',
+    fontSize: '0.8rem'
+  },
+  demoGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '10px'
+  },
+  demoBtn: {
+    padding: '10px',
+    borderRadius: '8px',
+    border: '1px solid var(--glass-border)',
+    background: 'var(--glass-bg)',
+    color: 'white',
+    fontSize: '0.85rem',
+    cursor: 'pointer'
   },
   input: {
     width: '100%',

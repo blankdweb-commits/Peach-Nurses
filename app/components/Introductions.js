@@ -1,20 +1,22 @@
-import React, { useState } from 'react';
+"use client";
+import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
 import { peachAIService } from '../services/peachAIService';
+import { DEV_MODE, MOCK_USERS } from '../services/devService';
 
 const Introductions = ({ onBack }) => {
-  const { potentialMatches, ripenMatch } = useUser();
+  const { potentialMatches, ripenMatch, fetchAllProfiles } = useUser();
   const [revealed, setRevealed] = useState([]);
 
-  // Mocking some potential matches if none exist
-  const displayMatches = potentialMatches.length > 0 ? potentialMatches.slice(0, 3) : [
-    { id: 'mock1', alias: 'Aisha', age: 27, based: 'Lagos', job: 'Architect', values: ['Peace', 'Growth'], lifestyle: 'Quiet weekends with books' },
-    { id: 'mock2', alias: 'Tunde', age: 31, based: 'Lagos', job: 'Software Engineer', values: ['Ambition', 'Loyalty'], lifestyle: 'Tech meetups and gym' },
-    { id: 'mock3', alias: 'Chioma', age: 29, based: 'Lagos', job: 'Doctor', values: ['Family', 'Honesty'], lifestyle: 'Cooking and traveling' }
-  ];
+  useEffect(() => {
+    fetchAllProfiles();
+  }, [fetchAllProfiles]);
+
+  // Use MOCK_USERS if in dev mode and no profiles loaded
+  const displayMatches = potentialMatches.length > 0 ? potentialMatches.slice(0, 3) : (DEV_MODE ? MOCK_USERS.slice(0, 3) : []);
 
   const handleInterest = async (matchId) => {
-    // In a real app, this would call ripenMatch
+    await ripenMatch(matchId);
     setRevealed(prev => [...prev, matchId]);
   };
 
@@ -25,38 +27,45 @@ const Introductions = ({ onBack }) => {
         <h2 style={styles.title}>Introductions</h2>
       </header>
 
-      <div style={styles.list}>
-        {displayMatches.map(match => (
-          <div key={match.id} className="glass-card" style={styles.card}>
-            {!revealed.includes(match.id) ? (
-              <div style={styles.summaryView}>
-                <div style={styles.matchIcon}>👤</div>
-                <h3 style={styles.summaryTitle}>A potential match in {match.based}</h3>
-                <p style={styles.summaryText}>{peachAIService.generateIntro(match)}</p>
-                <div style={styles.actions}>
-                  <button className="secondary" onClick={() => {}}>Not for me</button>
-                  <button className="primary" onClick={() => handleInterest(match.id)}>Interested</button>
-                </div>
-              </div>
-            ) : (
-              <div style={styles.revealView}>
-                <div style={styles.revealHeader}>
-                   <img
-                    src={match.photo_url || `https://picsum.photos/200/200?random=${match.id}`}
-                    alt={match.alias}
-                    style={styles.revealPhoto}
-                  />
-                  <div>
-                    <h3 style={styles.revealName}>{match.alias}, {match.age}</h3>
-                    <div style={styles.revealStatus}>Waiting for mutual interest...</div>
+      {displayMatches.length === 0 ? (
+        <div style={{textAlign: 'center', padding: '50px', color: 'var(--text-dim)'}}>
+           <p>Searching for compatible souls...</p>
+        </div>
+      ) : (
+        <div style={styles.list}>
+          {displayMatches.map(match => (
+            <div key={match.id} className="glass-card" style={styles.card}>
+              {!revealed.includes(match.id) ? (
+                <div style={styles.summaryView}>
+                  <div style={styles.matchIcon}>👤</div>
+                  <h3 style={styles.summaryTitle}>A potential match in {match.based}</h3>
+                  <p style={styles.summaryText}>{peachAIService.generateIntro(match)}</p>
+                  <div style={styles.actions}>
+                    <button className="secondary" onClick={() => {}}>Not for me</button>
+                    <button className="primary" onClick={() => handleInterest(match.id)}>Interested</button>
                   </div>
                 </div>
-                <p style={styles.revealText}>I've let them know you're interested. If they feel the same, I'll open a chat for you both.</p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+              ) : (
+                <div style={styles.revealView}>
+                  <div style={styles.revealHeader}>
+                     <img
+                      src={match.photo_url || `https://picsum.photos/200/200?random=${match.id}`}
+                      alt={match.alias}
+                      style={styles.revealPhoto}
+                      onError={(e) => { e.target.src = 'https://via.placeholder.com/60'; }}
+                    />
+                    <div>
+                      <h3 style={styles.revealName}>{match.alias}, {match.age}</h3>
+                      <div style={styles.revealStatus}>Waiting for mutual interest...</div>
+                    </div>
+                  </div>
+                  <p style={styles.revealText}>I've let them know you're interested. If they feel the same, I'll open a chat for you both.</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

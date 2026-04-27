@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 import { peachAIService } from '../services/peachAIService';
@@ -312,7 +313,9 @@ const styles = {
   submitBtn: {
     width: '100%',
     marginTop: '20px',
-    fontSize: '1.1rem'
+    fontSize: '1.1rem',
+    border: 'none',
+    fontWeight: 'bold'
   },
   chatContainer: {
     display: 'flex',
@@ -388,7 +391,8 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 0
+    padding: 0,
+    border: 'none'
   }
 };
 

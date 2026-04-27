@@ -86,3 +86,12 @@ button.secondary {
 button.secondary:hover {
   background-color: var(--glass-bg);
 }
+.divider span {
+  padding: 0 10px;
+}
+.divider::before, .divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--glass-border);
+}

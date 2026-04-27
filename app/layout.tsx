@@ -2,6 +2,7 @@ import './globals.css'
 import type { Metadata } from 'next'
 import { UserProvider } from './context/UserContext'
 import { AdminProvider } from './context/AdminContext'
+import DevToolbar from './components/DevToolbar'
 
 export const metadata: Metadata = {
   title: 'Peach - AI Matchmaker',
@@ -19,6 +20,7 @@ export default function RootLayout({
         <UserProvider>
           <AdminProvider>
             {children}
+            <DevToolbar />
           </AdminProvider>
         </UserProvider>
       </body>

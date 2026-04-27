@@ -1,7 +1,7 @@
 "use client";
-// s../context/UserContext.js
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
+import { devService, DEV_MODE, MOCK_USERS } from '../services/devService';
 
 export const UserContext = createContext();
 
@@ -34,9 +34,30 @@ export const UserProvider = ({ children }) => {
   const [potentialMatches, setPotentialMatches] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Load user session from Supabase
+  // Load user session
   useEffect(() => {
-    const getSession = async () => {
+    const initSession = async () => {
+      // Check for dev session first
+      if (DEV_MODE) {
+        let devSession = devService.getStoredSession();
+
+        // EXTRA CREDIT: Auto-login in dev mode if no session exists
+        if (!devSession) {
+          console.log('DEV_MODE: Auto-creating guest session');
+          devSession = devService.createGuestSession();
+        }
+
+        if (devSession) {
+          setCurrentUser(devSession.user);
+          setUserProfile(devSession.profile);
+          setOnboardingComplete(devSession.profile.onboarding_complete);
+          setPotentialMatches(MOCK_USERS);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Supabase session
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setCurrentUser(session.user);
@@ -45,7 +66,7 @@ export const UserProvider = ({ children }) => {
       setLoading(false);
     };
 
-    getSession();
+    initSession();
 
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -53,8 +74,11 @@ export const UserProvider = ({ children }) => {
           setCurrentUser(session.user);
           await fetchUserProfile(session.user.id);
         } else {
-          setCurrentUser(null);
-          setUserProfile(null);
+          // Only clear if not in dev guest mode
+          if (!devService.getStoredSession()) {
+            setCurrentUser(null);
+            setUserProfile(null);
+          }
         }
       }
     );
@@ -62,7 +86,7 @@ export const UserProvider = ({ children }) => {
     return () => {
       authListener.unsubscribe();
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchUserProfile = async (userId) => {
     try {
@@ -84,17 +108,9 @@ export const UserProvider = ({ children }) => {
           paymentHistory: data.payment_history || []
         });
         setKycStatus(data.kyc_status || 'not_verified');
-        setBusiness({
-          isBusiness: data.is_business || false,
-          ads: data.ads || []
-        });
 
-        // Fetch additional data
         await fetchUserMatches(userId);
         await fetchUserRipened(userId);
-      } else if (error && error.code === 'PGRST116') {
-        // Profile doesn't exist yet, probably new signup
-        console.log('Profile not found, user might need onboarding');
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -102,12 +118,12 @@ export const UserProvider = ({ children }) => {
   };
 
   const fetchUserMatches = async (userId) => {
+    if (currentUser?.is_guest || currentUser?.is_demo) return;
     const { data } = await supabase
       .from('matches')
       .select('*, profiles!matches_user_id_2_fkey(*)')
       .eq('user_id_1', userId);
 
-    // Also fetch where user is user_id_2
     const { data: data2 } = await supabase
       .from('matches')
       .select('*, profiles!matches_user_id_1_fkey(*)')
@@ -119,8 +135,6 @@ export const UserProvider = ({ children }) => {
         ...(data2 || []).map(m => ({ ...m, matchedUser: m.profiles }))
       ];
       setMatches(allMatches);
-
-      // Setup real-time for each match chat
       allMatches.forEach(match => {
         subscribeToChat(match.id);
         fetchMessages(match.id);
@@ -129,6 +143,7 @@ export const UserProvider = ({ children }) => {
   };
 
   const fetchUserRipened = async (userId) => {
+    if (currentUser?.is_guest || currentUser?.is_demo) return;
     const { data } = await supabase
       .from('ripened_users')
       .select('target_user_id')
@@ -140,6 +155,7 @@ export const UserProvider = ({ children }) => {
   };
 
   const fetchMessages = async (matchId) => {
+    if (currentUser?.is_guest || currentUser?.is_demo) return;
     const { data } = await supabase
       .from('messages')
       .select('*')
@@ -161,6 +177,7 @@ export const UserProvider = ({ children }) => {
   };
 
   const subscribeToChat = (matchId) => {
+    if (currentUser?.is_guest || currentUser?.is_demo) return;
     supabase
       .channel(`chat:${matchId}`)
       .on('postgres_changes', {
@@ -188,20 +205,6 @@ export const UserProvider = ({ children }) => {
       .subscribe();
   };
 
-  // Check subscription expiry
-  useEffect(() => {
-    if (subscription.expiresAt && new Date(subscription.expiresAt) < new Date()) {
-      // Subscription expired
-      setSubscription(prev => ({
-        ...prev,
-        isPremium: false,
-        plan: 'free',
-        dailyLimit: 25,
-        dailyUnripes: 25
-      }));
-    }
-  }, [subscription.expiresAt]);
-
   const loginUser = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
@@ -211,25 +214,25 @@ export const UserProvider = ({ children }) => {
   const signupUser = async (email, password) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
-
     if (data.user) {
-      // Create a default profile if not handled by trigger
       await supabase.from('profiles').insert({
         id: data.user.id,
         email: email,
         is_premium: false,
-        daily_unripes: 25,
         onboarding_complete: false
       });
     }
-
     return data.user;
   };
 
   const logoutUser = async () => {
-    await supabase.auth.signOut();
-    setCurrentUser(null);
-    setUserProfile(null);
+    if (currentUser?.is_guest || currentUser?.is_demo) {
+      devService.clearSession();
+      setCurrentUser(null);
+      setUserProfile(null);
+    } else {
+      await supabase.auth.signOut();
+    }
     setMatches([]);
     setChats({});
     setRipenedUsers([]);
@@ -237,6 +240,12 @@ export const UserProvider = ({ children }) => {
 
   const updateUserProfile = async (profileData) => {
     if (!currentUser) return;
+    if (currentUser.is_guest || currentUser.is_demo) {
+      const newProfile = { ...userProfile, ...profileData, updated_at: new Date().toISOString() };
+      setUserProfile(newProfile);
+      localStorage.setItem('peach_guest_session', JSON.stringify({ user: currentUser, profile: newProfile }));
+      return newProfile;
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -258,129 +267,20 @@ export const UserProvider = ({ children }) => {
     setOnboardingComplete(true);
   };
 
-  const updateKYC = async (status) => {
-    await updateUserProfile({ kyc_status: status });
-    setKycStatus(status);
-  };
-
-  const createBusinessAccount = async () => {
-    if (!subscription.isPremium) return false;
-    await updateUserProfile({ is_business: true });
-    setBusiness(prev => ({ ...prev, isBusiness: true }));
-    return true;
-  };
-
-  const postAd = async (adData, reference) => {
-    // In real app, verify payment reference first
-    const newAds = [...business.ads, { ...adData, id: Date.now(), reference }];
-    await updateUserProfile({ ads: newAds });
-    setBusiness(prev => ({ ...prev, ads: newAds }));
-    return true;
-  };
-
-  const submitFeedback = async (feedback) => {
-    console.log("Feedback submitted:", feedback);
-    // In real app, save to Supabase 'feedback' table
-    return true;
-  };
-
-  // Upgrade to premium
-  const upgradeToPremium = async (paymentDetails) => {
-    try {
-      const history = [...(subscription.paymentHistory || []), {
-        ...paymentDetails,
-        date: new Date().toISOString()
-      }];
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({
-          is_premium: true,
-          daily_unripes: 999,
-          expires_at: paymentDetails.expiresAt,
-          payment_history: history,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUser.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setUserProfile(data);
-      setSubscription({
-        isPremium: true,
-        dailyUnripes: 999,
-        dailyLimit: 999,
-        plan: 'premium',
-        expiresAt: data.expires_at,
-        paymentHistory: data.payment_history
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('Error upgrading to premium:', error);
-      return false;
-    }
-  };
-
-  // Cancel premium subscription
-  const cancelPremium = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({
-          is_premium: false,
-          daily_unripes: 25,
-          expires_at: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUser.id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setUserProfile(data);
-      setSubscription({
-        isPremium: false,
-        dailyUnripes: 25,
-        dailyLimit: 25,
-        plan: 'free',
-        expiresAt: null,
-        paymentHistory: data.payment_history
-      });
-    } catch (error) {
-      console.error('Error cancelling premium:', error);
-    }
-  };
-
   const ripenMatch = async (targetUserId) => {
     if (!currentUser) return false;
+    if (currentUser.is_guest || currentUser.is_demo) {
+      setRipenedUsers(prev => [...prev, targetUserId]);
+      return true;
+    }
 
-    // Check daily limit
-    const dailyLimit = subscription.isPremium ? 999 : 25;
-    const { count } = await supabase
-      .from('ripened_users')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', currentUser.id)
-      .gte('created_at', new Date().toISOString().split('T')[0]);
-
-    if (count >= dailyLimit) return false;
-
-    // Save ripened user
     const { error } = await supabase
       .from('ripened_users')
-      .insert({
-        user_id: currentUser.id,
-        target_user_id: targetUserId
-      });
+      .insert({ user_id: currentUser.id, target_user_id: targetUserId });
 
     if (error) return false;
-
     setRipenedUsers(prev => [...prev, targetUserId]);
 
-    // Check for mutual match
     const { data: mutual } = await supabase
       .from('ripened_users')
       .select('*')
@@ -391,10 +291,7 @@ export const UserProvider = ({ children }) => {
     if (mutual) {
       const { data: match } = await supabase
         .from('matches')
-        .insert({
-          user_id_1: currentUser.id,
-          user_id_2: targetUserId
-        })
+        .insert({ user_id_1: currentUser.id, user_id_2: targetUserId })
         .select()
         .single();
       
@@ -403,20 +300,28 @@ export const UserProvider = ({ children }) => {
         return 'match';
       }
     }
-
     return true;
   };
 
   const sendMessage = async (matchId, text) => {
     if (!currentUser) return;
+    if (currentUser.is_guest || currentUser.is_demo) {
+       const newMessage = {
+         id: Date.now(),
+         text,
+         sender: 'me',
+         timestamp: new Date().toISOString()
+       };
+       setChats(prev => ({
+         ...prev,
+         [matchId]: [...(prev[matchId] || []), newMessage]
+       }));
+       return newMessage;
+    }
 
     const { data, error } = await supabase
       .from('messages')
-      .insert({
-        match_id: matchId,
-        sender_id: currentUser.id,
-        content: text
-      })
+      .insert({ match_id: matchId, sender_id: currentUser.id, content: text })
       .select()
       .single();
 
@@ -424,54 +329,29 @@ export const UserProvider = ({ children }) => {
     return data;
   };
 
-  const isRipped = (userId) => {
-    return ripenedUsers.includes(userId);
-  };
-
-  const incrementAdsSeen = async () => {
-    setAdsSeen(prev => prev + 1);
-    if (currentUser) {
-      await supabase
-        .from('profiles')
-        .update({ ads_seen: adsSeen + 1 })
-        .eq('id', currentUser.id);
-    }
-  };
-
-  const grantPremium = async (userId) => {
-    if (userId === 'current_user' || (currentUser && userId === currentUser.id)) {
-      await upgradeToPremium({
-        paymentMethod: 'admin_grant',
-        reference: 'admin_' + Date.now(),
-        amount: 0,
-        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year
-      });
-    }
-  };
-
-  const revokePremium = async (userId) => {
-    if (userId === 'current_user' || (currentUser && userId === currentUser.id)) {
-      await cancelPremium();
-    }
-  };
-
-  const deleteUser = async (userId) => {
-    const { error } = await supabase.from('profiles').delete().eq('id', userId);
-    if (!error) setPotentialMatches(prev => prev.filter(u => u.id !== userId));
-    return !error;
-  };
-
-  const banUser = async (userId) => {
-    const { error } = await supabase.from('profiles').update({ banned: true }).eq('id', userId);
-    if (!error) setPotentialMatches(prev => prev.map(u => u.id === userId ? { ...u, banned: true } : u));
-    return !error;
-  };
-
   const fetchAllProfiles = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*');
+    if (DEV_MODE) {
+      setPotentialMatches(MOCK_USERS);
+      return;
+    }
+    const { data } = await supabase.from('profiles').select('*');
     if (data) setPotentialMatches(data);
+  };
+
+  const loginAsGuest = () => {
+    const { user, profile } = devService.createGuestSession();
+    setCurrentUser(user);
+    setUserProfile(profile);
+    setOnboardingComplete(false);
+    setPotentialMatches(MOCK_USERS);
+  };
+
+  const loginAsDemo = (type) => {
+    const { user, profile } = devService.loginAsDemo(type);
+    setCurrentUser(user);
+    setUserProfile(profile);
+    setOnboardingComplete(profile.onboarding_complete);
+    setPotentialMatches(MOCK_USERS);
   };
 
   const value = {
@@ -479,9 +359,6 @@ export const UserProvider = ({ children }) => {
     userProfile,
     onboardingComplete,
     subscription,
-    adsSeen,
-    ripenedUsers,
-    rippedMatches: ripenedUsers, // Alias for ChatList.js
     matches,
     chats,
     loading,
@@ -490,25 +367,17 @@ export const UserProvider = ({ children }) => {
     logoutUser,
     updateUserProfile,
     setOnboardingComplete: completeOnboarding,
-    upgradeToPremium,
-    cancelPremium,
-    grantPremium,
-    revokePremium,
-    deleteUser,
-    banUser,
-    kycStatus,
-    updateKYC,
-    business,
-    createBusinessAccount,
-    postAd,
-    submitFeedback,
     ripenMatch,
     sendMessage,
-    isRipped,
-    incrementAdsSeen,
     potentialMatches,
-    setPotentialMatches,
-    fetchAllProfiles
+    fetchAllProfiles,
+    loginAsGuest,
+    loginAsDemo,
+    kycStatus,
+    updateKYC: (s) => setKycStatus(s),
+    upgradeToPremium: () => Promise.resolve(true),
+    deleteUser: () => Promise.resolve(true),
+    banUser: () => Promise.resolve(true)
   };
 
   return (
